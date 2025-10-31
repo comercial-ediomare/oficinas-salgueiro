@@ -75,7 +75,7 @@ def init_db():
             id INTEGER PRIMARY KEY,
             full_name TEXT NOT NULL,
             email TEXT NOT NULL UNIQUE,
-            selections TEXT NOT NULL,
+            selections TEXT NOT NULL,      -- JSON de lista de IDs
             created_at TEXT NOT NULL
         );
         """)
@@ -94,7 +94,7 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 15, 0)  # capacidade inicial 15
+                    (n, 40, 0)  # capacidade inicial 15
                 )
         conn.commit()
 
@@ -165,9 +165,18 @@ def inscrever():
     full_name = (request.form.get("full_name") or "").strip()
     email     = (request.form.get("email") or "").strip().lower()
     consent   = request.form.get("consent") == "on"
-    chosen    = request.form.getlist("workshops")  # ids das oficinas marcadas
 
-    # Validações (mín. 1, máx. 4)
+    # Cada horário tem um campo radio slot_{id}
+    selected_per_slot = {}
+    chosen_ids = []
+    for slot in SLOTS:
+        val = request.form.get(f"slot_{slot['id']}")
+        if val:
+            wid = int(val)
+            selected_per_slot[slot["id"]] = wid
+            chosen_ids.append(wid)
+
+    # Validações (mín. 1, máx. 4 | 1 por horário | sem repetição de oficina)
     if not consent:
         flash("Você precisa concordar com o tratamento dos seus dados.", "error")
         return redirect(url_for("index"))
@@ -177,18 +186,37 @@ def inscrever():
     if not email or "@" not in email:
         flash("Informe um e-mail válido.", "error")
         return redirect(url_for("index"))
-    if len(chosen) < 1:
-        flash("Selecione pelo menos 1 oficina.", "error")
+
+    if len(chosen_ids) < 1:
+        flash("Selecione pelo menos 1 oficina (uma por horário).", "error")
         return redirect(url_for("index"))
-    if len(chosen) > 4:
-        flash("Você pode selecionar no máximo 4 oficinas.", "error")
+    if len(chosen_ids) > 4:
+        flash("Você pode selecionar no máximo 4 oficinas (uma por horário).", "error")
         return redirect(url_for("index"))
 
-    chosen_ids = [int(x) for x in chosen]
+    # Sem duplicidade de oficina entre horários
+    if len(chosen_ids) != len(set(chosen_ids)):
+        flash("Você não pode escolher a mesma oficina em horários diferentes.", "error")
+        return redirect(url_for("index"))
 
+    # Segurança extra: impedir oficina bloqueada no horário
+    with closing(get_db()) as conn:
+        ws = conn.execute("SELECT id, name, capacity, registered FROM workshops").fetchall()
+        id_to_name = {row["id"]: row["name"] for row in ws}
+        id_to_cap  = {row["id"]: (row["capacity"], row["registered"]) for row in ws}
+
+    for slot in SLOTS:
+        wid = selected_per_slot.get(slot["id"])
+        if not wid:
+            continue
+        wname = id_to_name.get(wid, "")
+        if wname in slot["bloqueadas"]:
+            flash(f"A oficina '{wname}' não está disponível no horário das {slot['hora']}.", "error")
+            return redirect(url_for("index"))
+
+    # --- Persistência com checagem de vagas (transação) ---
     conn = get_db()
     try:
-        # Transação para evitar corrida de vagas
         conn.execute("BEGIN IMMEDIATE")
         cur = conn.cursor()
 
@@ -199,7 +227,7 @@ def inscrever():
             flash("Este e-mail já está inscrito.", "error")
             return redirect(url_for("index"))
 
-        # Verifica e reserva vagas
+        # Verifica e reserva vagas (somente nas oficinas escolhidas)
         for wid in chosen_ids:
             cur.execute("SELECT capacity, registered FROM workshops WHERE id = ?", (wid,))
             row = cur.fetchone()
@@ -326,6 +354,3 @@ def export_csv():
 if __name__ == "__main__":
     # Em produção (Render) quem inicia é o Gunicorn
     app.run(debug=True)
-
-
-
