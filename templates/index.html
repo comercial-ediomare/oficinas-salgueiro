@@ -4,70 +4,43 @@
   <meta charset="utf-8">
   <title>Inscrição nas Oficinas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
       margin: 2rem auto;
-      max-width: 800px;
+      max-width: 860px;
       color: #222;
+      padding: 0 1rem;
     }
     h1 {
       text-align: center;
       margin-bottom: 1rem;
       color: #004b6b;
     }
-    form {
-      margin-top: 1rem;
-    }
+    form { margin-top: 1rem; }
     fieldset.slot {
-      margin: 1.5em 0;
+      margin: 1.25em 0;
       padding: 1em;
       border: 2px solid #ccc;
       border-radius: 10px;
     }
-    legend {
-      font-weight: bold;
-      color: #333;
-    }
-    label {
-      display: block;
-      margin-bottom: .4em;
-    }
-    label.bloqueada {
-      color: #888;
-    }
-    label.bloqueada small {
-      color: #aaa;
-    }
-    .flash {
-      padding: 1em;
-      border-radius: 6px;
-      margin-bottom: 1em;
-    }
-    .flash.error {
-      background: #ffe0e0;
-      color: #a00;
-      border: 1px solid #f99;
-    }
-    .flash.message {
-      background: #e0f8e0;
-      color: #060;
-      border: 1px solid #9c9;
+    legend { font-weight: bold; color: #333; }
+    label { display: block; margin-bottom: .45em; }
+    label.bloqueada { color: #888; }
+    label.bloqueada small { color: #aaa; }
+    .flash { padding: 1em; border-radius: 6px; margin-bottom: 1em; }
+    .flash.error { background: #ffe0e0; color: #a00; border: 1px solid #f99; }
+    .flash.message { background: #e0f8e0; color: #060; border: 1px solid #9c9; }
+    input[type="text"], input[type="email"] {
+      width: 100%; padding: .6em; border: 1px solid #bbb; border-radius: 6px; margin-top: .25em;
     }
     button {
-      background: #0074a6;
-      color: #fff;
-      border: none;
-      padding: .75em 1.5em;
-      border-radius: 6px;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 1rem;
+      background: #0074a6; color: #fff; border: none;
+      padding: .75em 1.5em; border-radius: 6px; font-size: 1rem;
+      cursor: pointer; margin-top: 1rem;
     }
-    button:hover {
-      background: #005c83;
-    }
+    button:hover { background: #005c83; }
+    small.muted { color: #666; }
   </style>
 </head>
 <body>
@@ -83,54 +56,99 @@
 
   <form method="post" action="{{ url_for('inscrever') }}">
     <label>Nome completo:
-      <input type="text" name="full_name" required style="width:100%; padding:.5em;">
+      <input type="text" name="full_name" required>
     </label>
 
-    <label>E-mail:
-      <input type="email" name="email" required style="width:100%; padding:.5em;">
+    <label style="margin-top:.6em;">E-mail:
+      <input type="email" name="email" required>
     </label>
 
-    <p><strong>Escolha até 4 oficinas (no mínimo 1):</strong></p>
+    <p><strong>Escolha de 1 a 4 oficinas (máximo 1 por horário):</strong></p>
 
     {% for slot in slots %}
       <fieldset class="slot">
         <legend>{{ loop.index }}º Horário — {{ slot.hora }}</legend>
-        {% for w in workshops %}
-          {% if w["name"] not in slot.bloqueadas %}
-            <label>
-              <input type="checkbox" name="workshops" value="{{ w['id'] }}" onchange="limitSelection(this)">
-              {{ w["name"] }}
-              <small>({{ w["registered"] }}/{{ w["capacity"] }} vagas ocupadas)</small>
-            </label>
-          {% else %}
-            <label class="bloqueada">
-              <input type="checkbox" disabled>
-              {{ w["name"] }} <small>(não disponível neste horário)</small>
-            </label>
-          {% endif %}
-        {% endfor %}
+        <div class="oficinas">
+          {% for w in workshops %}
+            {% if w["name"] not in slot.bloqueadas %}
+              <label>
+                <input type="radio"
+                       name="slot_{{ slot.id }}"
+                       value="{{ w['id'] }}"
+                       data-workshop-id="{{ w['id'] }}"
+                       data-slot-id="{{ slot.id }}"
+                       onchange="updateSlots()">
+                {{ w["name"] }}
+                <small class="muted">({{ w["registered"] }}/{{ w["capacity"] }} vagas ocupadas)</small>
+              </label>
+            {% else %}
+              <label class="bloqueada">
+                <input type="radio" disabled>
+                {{ w["name"] }} <small class="muted">(não disponível neste horário)</small>
+              </label>
+            {% endif %}
+          {% endfor %}
+          <!-- opção de não escolher nada neste horário -->
+          <label>
+            <input type="radio"
+                   name="slot_{{ slot.id }}"
+                   value=""
+                   data-slot-id="{{ slot.id }}"
+                   onchange="updateSlots()">
+            Não escolher neste horário
+          </label>
+        </div>
       </fieldset>
     {% endfor %}
 
     <p>
       <label>
         <input type="checkbox" name="consent" required>
-        Autorizo o uso dos meus dados para fins de organização das oficinas.
+        Autorizo o uso dos meus dados para organização das oficinas.
       </label>
     </p>
 
-    <button type="submit">Enviar inscrição</button>
+    <button type="submit" id="submitBtn" disabled>Enviar inscrição</button>
   </form>
 
   <script>
-    const maxSelections = 4;
-    function limitSelection(chk) {
-      const all = document.querySelectorAll('input[name="workshops"]:checked');
-      if (all.length > maxSelections) {
-        alert("Você pode selecionar no máximo " + maxSelections + " oficinas.");
-        chk.checked = false;
-      }
+    function updateSlots() {
+      // Coleta as oficinas já escolhidas em outros horários
+      const selectedValues = new Set();
+      document.querySelectorAll('input[type="radio"][name^="slot_"]:checked').forEach(r => {
+        if (r.value) selectedValues.add(r.value);
+      });
+
+      // Para cada slot, desabilita as opções (radios) que já estão escolhidas em outro slot
+      const allRadios = Array.from(document.querySelectorAll('input[type="radio"][name^="slot_"]'));
+      allRadios.forEach(r => {
+        const val = r.value;
+        if (!val) { // "Não escolher neste horário" nunca é bloqueado
+          r.disabled = false;
+          return;
+        }
+        const slotId = r.dataset.slotId;
+        const checkedInThisSlot = document.querySelector('input[type="radio"][name="slot_' + slotId + '"]:checked');
+        const isSelectedHere = checkedInThisSlot && checkedInThisSlot.value === val;
+
+        // Se a oficina (val) já foi escolhida em outro slot, bloqueia aqui
+        // exceto se está selecionada neste mesmo slot (para permitir trocar dentro dele)
+        if (selectedValues.has(val) && !isSelectedHere) {
+          r.disabled = true;
+        } else {
+          r.disabled = false;
+        }
+      });
+
+      // Habilita o submit se tiver pelo menos 1 seleção e no máx 4
+      const chosenCount = Array.from(document.querySelectorAll('input[type="radio"][name^="slot_"]:checked'))
+                               .filter(r => r.value).length;
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = !(chosenCount >= 1 && chosenCount <= 4);
     }
+
+    // Inicializa estado
+    document.addEventListener('DOMContentLoaded', updateSlots);
   </script>
 </body>
 </html>
