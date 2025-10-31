@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Admin - Resumo{% endblock %}
+{% block content %}
+  <h1>Painel Administrativo</h1>
+
+  <p>
+    <a class="link" href="{{ url_for('export_csv') }}">Exportar CSV</a> ·
+    <a class="link" href="{{ url_for('logout') }}">Sair</a>
+  </p>
+
+  <h2>Vagas por oficina</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Oficina</th><th>Capacidade</th><th>Inscritos</th><th>Restantes</th></tr>
+    </thead>
+    <tbody>
+      {% for w in workshops %}
+      <tr>
+        <td>{{ w.id }}</td>
+        <td>{{ w.name }}</td>
+        <td>{{ w.capacity }}</td>
+        <td>{{ w.registered }}</td>
+        <td>{{ w.remaining }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Inscritos</h2>
+  <table>
+    <thead><tr><th>Nome</th><th>E-mail</th><th>Seleções (IDs)</th><th>Data (UTC)</th></tr></thead>
+    <tbody>
+      {% for a in attendees %}
+        <tr>
+          <td>{{ a.full_name }}</td>
+          <td>{{ a.email }}</td>
+          <td>{{ a.selections | join(\", \") }}</td>
+          <td>{{ a.created_at }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

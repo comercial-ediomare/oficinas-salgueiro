@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Inscrição em Oficinas{% endblock %}
+{% block content %}
+  <h1>Inscreva-se nas Oficinas</h1>
+  <p>Escolha <strong>exatamente 4</strong> entre as 7 oficinas disponíveis.</p>
+
+  <form method="POST" action="{{ url_for('inscrever') }}">
+    <label for="full_name" class="label">Nome completo</label>
+    <input id="full_name" name="full_name" type="text" required placeholder="Seu nome completo">
+
+    <label for="email" class="label">E-mail</label>
+    <input id="email" name="email" type="email" required placeholder="seu@email.com">
+
+    <fieldset class="field">
+      <legend>Oficinas (<span id="count">0</span>/4)</legend>
+      <ul class="list">
+        {% for w in workshops %}
+          <li>
+            <label class="option">
+              <input type="checkbox" name="workshops" value="{{ w.id }}"
+                {% if w.capacity - w.registered <= 0 %} disabled {% endif %}>
+              <span class="name">{{ w.name }}</span>
+              <span class="badge">
+                {% if w.capacity - w.registered > 0 %}
+                  {{ w.capacity - w.registered }} vagas
+                {% else %}
+                  Esgotado
+                {% endif %}
+              </span>
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="hint">Marque exatamente 4 opções.</p>
+    </fieldset>
+
+    <label class="consent">
+      <input type="checkbox" name="consent" required>
+      Concordo com o tratamento dos meus dados para fins de inscrição.
+    </label>
+
+    <button type="submit" id="submitBtn" disabled>Concluir inscrição</button>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Login do Administrador{% endblock %}
+{% block content %}
+  <h1>Acesso do Administrador</h1>
+  {% if error %}
+    <div class="flash-item error">{{ error }}</div>
+  {% endif %}
+  <form method="POST">
+    <label class="label">Usuário</label>
+    <input name="username" type="text" required placeholder="admin">
+
+    <label class="label">Senha</label>
+    <input name="password" type="password" required placeholder="••••••••">
+
+    <button type="submit">Entrar</button>
+  </form>
+{% endblock %}
