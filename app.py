@@ -54,11 +54,9 @@ if cur.fetchone()["c"] == 0:
         "DOMINANDO AS EMOÇÕES PARA QUE O ESPÍRITO SANTO GOVERNE",
         "DA FRAQUEZA À VITÓRIA: TORNANDO-SE FORTE NA PALAVRA",
         "FORTALECENDO-SE NO PODER DO ESPÍRITO",
-]
+    ]
 for n in names:
-    cur.execute("INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",(n, 40, 0), # capacidade inicial 40
-)
-
+    cur.execute("INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",(n, 40, 0), # capacidade inicial 40)
 
 # --- Auth simples (session) ---
 @app.before_first_request
@@ -80,6 +78,7 @@ return redirect(url_for("login", next=request.path))
 return view(*args, **kwargs)
 return wrapped
 app.run(debug=True)
+
 
 
 
