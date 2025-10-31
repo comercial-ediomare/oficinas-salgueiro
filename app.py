@@ -24,26 +24,25 @@ def get_db():
 
 
 def init_db():
-with closing(get_db()) as conn:
-cur = conn.cursor()
-cur.executescript(
-"""
-PRAGMA journal_mode=WAL;
-CREATE TABLE IF NOT EXISTS workshops(
-id INTEGER PRIMARY KEY,
-name TEXT NOT NULL,
-capacity INTEGER NOT NULL,
-registered INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS attendees(
-id INTEGER PRIMARY KEY,
-full_name TEXT NOT NULL,
-email TEXT NOT NULL UNIQUE,
-selections TEXT NOT NULL,
-created_at TEXT NOT NULL
-);
-"""
-)
+    with closing(get_db()) as conn:
+        cur = conn.cursor()
+        cur.executescript("""
+        PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS workshops(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            capacity INTEGER NOT NULL,
+            registered INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS attendees(
+            id INTEGER PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            selections TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        """)
+
 # Seed das 7 oficinas (apenas se estiver vazio)
 cur.execute("SELECT COUNT(*) c FROM workshops")
 if cur.fetchone()["c"] == 0:
@@ -83,4 +82,5 @@ return redirect(url_for("login", next=request.path))
 return view(*args, **kwargs)
 return wrapped
 app.run(debug=True)
+
 
