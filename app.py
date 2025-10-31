@@ -7,7 +7,7 @@ from functools import wraps
 # --- Config ---
 APP_SECRET = os.environ.get("APP_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-# Segurança: em produção prefira ADMIN_PASS_HASH; se ADMIN_PASS vier, geramos o hash no primeiro request
+# Segurança: em produção prefira ADMIN_PASS_HASH; se ADMIN_PASS vier, geramos o hash no startup
 ADMIN_PASS_HASH = os.environ.get("ADMIN_PASS_HASH")
 ADMIN_PASS = os.environ.get("ADMIN_PASS")
 
@@ -55,16 +55,15 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 40, 0)  # capacidade inicial 15
+                    (n, 15, 0)
                 )
         conn.commit()
 
-# --- Auth / bootstrap ---
-@app.before_first_request
-def _init():
+# --- Bootstrap (Flask 3.x: sem before_first_request) ---
+with app.app_context():
     init_db()
-    global ADMIN_PASS_HASH
     if not ADMIN_PASS_HASH and ADMIN_PASS:
+        # gera o hash apenas uma vez no startup
         ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
 
 def login_required(view):
