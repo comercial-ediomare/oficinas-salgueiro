@@ -2,7 +2,7 @@
 {% block title %}Inscrição em Oficinas{% endblock %}
 {% block content %}
   <h1>Inscreva-se nas Oficinas</h1>
-  <p>Escolha <strong>exatamente 4</strong> entre as 7 oficinas disponíveis.</p>
+  <p>Escolha <strong>de 1 a 4</strong> entre as 7 oficinas disponíveis.</p>
 
   <form method="POST" action="{{ url_for('inscrever') }}">
     <label for="full_name" class="label">Nome completo</label>
@@ -12,7 +12,7 @@
     <input id="email" name="email" type="email" required placeholder="seu@email.com">
 
     <fieldset class="field">
-      <legend>Oficinas (<span id="count">0</span>/4)</legend>
+      <legend>Oficinas (selecionadas: <span id="count">0</span>/4)</legend>
       <ul class="list">
         {% for w in workshops %}
           <li>
@@ -31,7 +31,7 @@
           </li>
         {% endfor %}
       </ul>
-      <p class="hint">Marque exatamente 4 opções.</p>
+      <p class="hint">Selecione entre 1 e 4 oficinas.</p>
     </fieldset>
 
     <label class="consent">
@@ -45,4 +45,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='app.js') }}"></script>
+
 {% endblock %}
