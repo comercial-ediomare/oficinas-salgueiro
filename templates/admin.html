@@ -1,43 +1,83 @@
-{% extends "base.html" %}
-{% block title %}Admin - Resumo{% endblock %}
-{% block content %}
-  <h1>Painel Administrativo</h1>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Painel de Inscrições</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 1080px; margin: 2rem auto; padding: 0 1rem; color:#222; }
+    h1 { color:#004b6b; margin-bottom:.25rem; }
+    .top { display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+    a.btn { display:inline-block; background:#0074a6; color:#fff; text-decoration:none; padding:.6rem .9rem; border-radius:6px; }
+    a.btn:hover { background:#005c83; }
+    table { width:100%; border-collapse:collapse; margin:1rem 0 2rem; }
+    th, td { border:1px solid #ddd; padding:.55rem .6rem; vertical-align:top; }
+    th { background:#f6f6f6; text-align:left; }
+    small.muted { color:#666; }
+    ul { margin:.3rem 0 .6rem 1.2rem; }
+    code { background:#f3f3f3; padding:.05rem .3rem; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>Painel de Inscrições</h1>
+    <a class="btn" href="{{ url_for('export_csv') }}">Exportar CSV</a>
+    <a class="btn" href="{{ url_for('logout') }}">Sair</a>
+  </div>
 
-  <p>
-    <a class="link" href="{{ url_for('export_csv') }}">Exportar CSV</a> ·
-    <a class="link" href="{{ url_for('logout') }}">Sair</a>
-  </p>
-
-  <h2>Vagas por oficina</h2>
+  <h2>Oficinas</h2>
   <table>
     <thead>
-      <tr><th>ID</th><th>Oficina</th><th>Capacidade</th><th>Inscritos</th><th>Restantes</th></tr>
+      <tr>
+        <th>ID</th><th>Nome</th><th>Capacidade</th><th>Inscritos</th><th>Restantes</th>
+      </tr>
     </thead>
     <tbody>
       {% for w in workshops %}
-      <tr>
-        <td>{{ w.id }}</td>
-        <td>{{ w.name }}</td>
-        <td>{{ w.capacity }}</td>
-        <td>{{ w.registered }}</td>
-        <td>{{ w.remaining }}</td>
-      </tr>
+        <tr>
+          <td>{{ w['id'] }}</td>
+          <td>{{ w['name'] }}</td>
+          <td>{{ w['capacity'] }}</td>
+          <td>{{ w['registered'] }}</td>
+          <td>{{ w['remaining'] }}</td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
 
+  {% macro name_for_id(wid, ws) -%}
+    {%- for w in ws -%}
+      {%- if w['id'] == wid -%}{{ w['name'] }}{%- endif -%}
+    {%- endfor -%}
+  {%- endmacro %}
+
   <h2>Inscritos</h2>
   <table>
-    <thead><tr><th>Nome</th><th>E-mail</th><th>Seleções (IDs)</th><th>Data (UTC)</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Nome</th><th>E-mail</th><th>Oficinas selecionadas</th><th>Criado em (UTC)</th>
+      </tr>
+    </thead>
     <tbody>
       {% for a in attendees %}
         <tr>
           <td>{{ a.full_name }}</td>
           <td>{{ a.email }}</td>
-          <td>{{ a.selections | join(\", \") }}</td>
-          <td>{{ a.created_at }}</td>
+          <td>
+            {% if a.selections and a.selections|length > 0 %}
+              <ul>
+                {% for wid in a.selections %}
+                  <li>{{ name_for_id(wid, workshops) }} <small class="muted">(id {{ wid }})</small></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <small class="muted">—</small>
+            {% endif %}
+          </td>
+          <td><code>{{ a.created_at }}</code></td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
-{% endblock %}
+</body>
+</html>
