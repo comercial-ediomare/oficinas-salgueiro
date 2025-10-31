@@ -5,7 +5,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 
 conn.execute("COMMIT")
 return redirect(url_for("sucesso"))
-except Exception:
 try:
 conn.execute("ROLLBACK")
 except:
@@ -97,3 +96,4 @@ return resp
 if __name__ == "__main__":
 
 app.run(debug=True)
+
