@@ -6,33 +6,57 @@ from functools import wraps
 
 # --- Config ---
 APP_SECRET = os.environ.get("APP_SECRET", "changeme")
-ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
+ADMIN_USER  = os.environ.get("ADMIN_USER", "admin")
 # Em produção prefira ADMIN_PASS_HASH; se ADMIN_PASS vier, geramos o hash no bootstrap
 ADMIN_PASS_HASH = os.environ.get("ADMIN_PASS_HASH")
-ADMIN_PASS = os.environ.get("ADMIN_PASS")
+ADMIN_PASS      = os.environ.get("ADMIN_PASS")
 
 app = Flask(__name__)
 app.secret_key = APP_SECRET
 DB_PATH = os.environ.get("DB_PATH", "inscricoes.db")
+FALLBACK_DB = "inscricoes.db"   # usado se /data não estiver montado
 
-# --- Utils / FS ---
-def _ensure_db_dir(path: str):
-    """Garante que a pasta do arquivo de banco exista."""
+# --- Utils / FS (sem tentar criar /data à força) ---
+def _is_writable_dir(dirpath: str) -> bool:
+    return os.path.isdir(dirpath) and os.access(dirpath, os.W_OK)
+
+def _can_use_path(path: str) -> bool:
+    """
+    Verifica se o caminho do banco pode ser usado.
+    - NUNCA tenta criar /data no Render (evita PermissionError).
+    - Se for um caminho com diretório inexistente diferente de /data, tenta criar.
+    """
     dirpath = os.path.dirname(path)
-    if dirpath and not os.path.exists(dirpath):
-        os.makedirs(dirpath, exist_ok=True)
+    if not dirpath:
+        # Sem diretório (arquivo na raiz do app): ok
+        return True
+
+    # Se for /data (ou subpasta) e não for gravável, não tenta criar: retorna False
+    if dirpath.startswith("/data"):
+        return _is_writable_dir(dirpath)
+
+    # Para outros diretórios, tenta criar e depois checa gravabilidade
+    try:
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)
+    except Exception:
+        return False
+    return _is_writable_dir(dirpath)
+
+def _choose_db_path(primary: str, fallback: str) -> str:
+    """Escolhe DB_PATH se utilizável; caso contrário, usa fallback local."""
+    if _can_use_path(primary):
+        return primary
+    if _can_use_path(fallback):
+        return fallback
+    # Último recurso: arquivo na raiz
+    return "inscricoes.db"
 
 # --- DB Helpers ---
 def get_db():
-    """Abre conexão SQLite garantindo a pasta. Faz fallback local se /data não estiver montado."""
-    _ensure_db_dir(DB_PATH)
-    try:
-        conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)
-    except sqlite3.OperationalError:
-        # Fallback para arquivo local (não persiste entre deploys, mas evita crash)
-        fallback = "inscricoes.db"
-        _ensure_db_dir(fallback)
-        conn = sqlite3.connect(fallback, timeout=10, isolation_level=None)
+    """Abre conexão SQLite usando caminho válido (com fallback local)."""
+    path = _choose_db_path(DB_PATH, FALLBACK_DB)
+    conn = sqlite3.connect(path, timeout=10, isolation_level=None)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -70,9 +94,42 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 40, 0)  # capacidade inicial 15
+                    (n, 15, 0)  # capacidade inicial 15
                 )
         conn.commit()
+
+# --- Horários e restrições ---
+SLOTS = [
+    {
+        "id": 1,
+        "hora": "14h00",
+        "bloqueadas": ["FORTALECENDO-SE NO PODER DO ESPÍRITO"],
+    },
+    {
+        "id": 2,
+        "hora": "15h50",
+        "bloqueadas": [
+            "TRANSFORMANDO COMPORTAMENTOS DESTRUTIVOS",
+            "VENCENDO AS MENTIRAS COM A VERDADE",
+        ],
+    },
+    {
+        "id": 3,
+        "hora": "19h00",
+        "bloqueadas": [
+            "CUIDANDO DO CORPO ONDE O ESPÍRITO HABITA",
+            "DA FRAQUEZA À VITÓRIA: TORNANDO-SE FORTE NA PALAVRA",
+        ],
+    },
+    {
+        "id": 4,
+        "hora": "20h50",
+        "bloqueadas": [
+            "RAÍZES QUE PRECISAM SER ARRANCADAS",
+            "DOMINANDO AS EMOÇÕES PARA QUE O ESPÍRITO SANTO GOVERNE",
+        ],
+    },
+]
 
 # --- Bootstrap (Flask 3: sem before_first_request) ---
 app.config["BOOTSTRAPPED"] = False
@@ -99,17 +156,18 @@ def login_required(view):
 @app.route("/")
 def index():
     with closing(get_db()) as conn:
-        ws = conn.execute("SELECT * FROM workshops ORDER BY id").fetchall()
-    return render_template("index.html", workshops=ws)
+        workshops = conn.execute("SELECT * FROM workshops ORDER BY id").fetchall()
+    # Passa os slots para o template para filtrar por horário
+    return render_template("index.html", workshops=workshops, slots=SLOTS)
 
 @app.route("/inscrever", methods=["POST"])
 def inscrever():
     full_name = (request.form.get("full_name") or "").strip()
-    email = (request.form.get("email") or "").strip().lower()
-    consent = request.form.get("consent") == "on"
-    chosen = request.form.getlist("workshops")
+    email     = (request.form.get("email") or "").strip().lower()
+    consent   = request.form.get("consent") == "on"
+    chosen    = request.form.getlist("workshops")  # ids das oficinas marcadas
 
-    # Validações
+    # Validações (mín. 1, máx. 4)
     if not consent:
         flash("Você precisa concordar com o tratamento dos seus dados.", "error")
         return redirect(url_for("index"))
@@ -185,7 +243,7 @@ def login():
     error = None
     if request.method == "POST":
         user = (request.form.get("username") or "").strip()
-        pwd = request.form.get("password") or ""
+        pwd  = request.form.get("password") or ""
         if user != ADMIN_USER:
             error = "Usuário ou senha inválidos."
         elif not ADMIN_PASS_HASH:
@@ -268,5 +326,6 @@ def export_csv():
 if __name__ == "__main__":
     # Em produção (Render) quem inicia é o Gunicorn
     app.run(debug=True)
+
 
 
