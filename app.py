@@ -70,7 +70,7 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 15, 0)  # capacidade inicial 15
+                    (n, 40, 0)  # capacidade inicial 15
                 )
         conn.commit()
 
@@ -268,4 +268,5 @@ def export_csv():
 if __name__ == "__main__":
     # Em produção (Render) quem inicia é o Gunicorn
     app.run(debug=True)
+
 
