@@ -46,14 +46,14 @@ def init_db():
 # Seed das 7 oficinas (apenas se estiver vazio)
 cur.execute("SELECT COUNT(*) c FROM workshops")
 if cur.fetchone()["c"] == 0:
-names = [
-    "TRANSFORMANDO COMPORTAMENTOS DESTRUTIVOS",
-    "RAÍZES QUE PRECISAM SER ARRANCADAS",
-    "VENCENDO AS MENTIRAS COM A VERDADE",
-    "CUIDANDO DO CORPO ONDE O ESPÍRITO HABITA",
-    "DOMINANDO AS EMOÇÕES PARA QUE O ESPÍRITO SANTO GOVERNE",
-    "DA FRAQUEZA À VITÓRIA: TORNANDO-SE FORTE NA PALAVRA",
-    "FORTALECENDO-SE NO PODER DO ESPÍRITO",
+    names = [
+        "TRANSFORMANDO COMPORTAMENTOS DESTRUTIVOS",
+        "RAÍZES QUE PRECISAM SER ARRANCADAS",
+        "VENCENDO AS MENTIRAS COM A VERDADE",
+        "CUIDANDO DO CORPO ONDE O ESPÍRITO HABITA",
+        "DOMINANDO AS EMOÇÕES PARA QUE O ESPÍRITO SANTO GOVERNE",
+        "DA FRAQUEZA À VITÓRIA: TORNANDO-SE FORTE NA PALAVRA",
+        "FORTALECENDO-SE NO PODER DO ESPÍRITO",
 ]
 for n in names:
     cur.execute("INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",(n, 40, 0), # capacidade inicial 40
@@ -80,6 +80,7 @@ return redirect(url_for("login", next=request.path))
 return view(*args, **kwargs)
 return wrapped
 app.run(debug=True)
+
 
 
 
