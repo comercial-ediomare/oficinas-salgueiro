@@ -7,7 +7,7 @@ from functools import wraps
 # --- Config ---
 APP_SECRET = os.environ.get("APP_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-# Segurança: em produção prefira ADMIN_PASS_HASH; se ADMIN_PASS vier, geramos o hash no startup
+# Em produção prefira ADMIN_PASS_HASH; se ADMIN_PASS vier, geramos o hash no bootstrap
 ADMIN_PASS_HASH = os.environ.get("ADMIN_PASS_HASH")
 ADMIN_PASS = os.environ.get("ADMIN_PASS")
 
@@ -15,9 +15,24 @@ app = Flask(__name__)
 app.secret_key = APP_SECRET
 DB_PATH = os.environ.get("DB_PATH", "inscricoes.db")
 
-# --- Helpers DB ---
+# --- Utils / FS ---
+def _ensure_db_dir(path: str):
+    """Garante que a pasta do arquivo de banco exista."""
+    dirpath = os.path.dirname(path)
+    if dirpath and not os.path.exists(dirpath):
+        os.makedirs(dirpath, exist_ok=True)
+
+# --- DB Helpers ---
 def get_db():
-    conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)
+    """Abre conexão SQLite garantindo a pasta. Faz fallback local se /data não estiver montado."""
+    _ensure_db_dir(DB_PATH)
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)
+    except sqlite3.OperationalError:
+        # Fallback para arquivo local (não persiste entre deploys, mas evita crash)
+        fallback = "inscricoes.db"
+        _ensure_db_dir(fallback)
+        conn = sqlite3.connect(fallback, timeout=10, isolation_level=None)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -55,17 +70,23 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 15, 0)
+                    (n, 15, 0)  # capacidade inicial 15
                 )
         conn.commit()
 
-# --- Bootstrap (Flask 3.x: sem before_first_request) ---
-with app.app_context():
-    init_db()
-    if not ADMIN_PASS_HASH and ADMIN_PASS:
-        # gera o hash apenas uma vez no startup
-        ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
+# --- Bootstrap (Flask 3: sem before_first_request) ---
+app.config["BOOTSTRAPPED"] = False
 
+@app.before_request
+def _bootstrap_once():
+    if not app.config["BOOTSTRAPPED"]:
+        init_db()
+        global ADMIN_PASS_HASH
+        if not ADMIN_PASS_HASH and ADMIN_PASS:
+            ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
+        app.config["BOOTSTRAPPED"] = True
+
+# --- Auth helper ---
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -155,7 +176,7 @@ def inscrever():
 def sucesso():
     return render_template("success.html")
 
-# --- Rotas de admin (login / logout / painel / export) ---
+# --- Rotas de admin ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
