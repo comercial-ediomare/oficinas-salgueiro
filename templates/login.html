@@ -1,17 +1,34 @@
-{% extends "base.html" %}
-{% block title %}Login do Administrador{% endblock %}
-{% block content %}
-  <h1>Acesso do Administrador</h1>
-  {% if error %}
-    <div class="flash-item error">{{ error }}</div>
-  {% endif %}
-  <form method="POST">
-    <label class="label">Usuário</label>
-    <input name="username" type="text" required placeholder="admin">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Login do Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 420px; margin: 10vh auto; padding: 0 1rem; color:#222; }
+    h1 { text-align:center; color:#004b6b; }
+    label { display:block; margin:.75rem 0 .25rem; }
+    input { width:100%; padding:.6rem; border:1px solid #bbb; border-radius:6px; }
+    button { margin-top:1rem; width:100%; padding:.8rem; border:none; border-radius:6px; background:#0074a6; color:#fff; font-size:1rem; cursor:pointer; }
+    button:hover { background:#005c83; }
+    .error { background:#ffe0e0; border:1px solid #f99; color:#a00; padding:.75rem; border-radius:6px; margin:1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Área Administrativa</h1>
 
-    <label class="label">Senha</label>
-    <input name="password" type="password" required placeholder="••••••••">
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('login', **request.args) }}">
+    <label>Usuário</label>
+    <input type="text" name="username" required autofocus>
+
+    <label>Senha</label>
+    <input type="password" name="password" required>
 
     <button type="submit">Entrar</button>
   </form>
-{% endblock %}
+</body>
+</html>
