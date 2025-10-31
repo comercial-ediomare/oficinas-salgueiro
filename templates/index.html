@@ -5,25 +5,10 @@
   <title>Inscrição nas Oficinas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      margin: 2rem auto;
-      max-width: 860px;
-      color: #222;
-      padding: 0 1rem;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 1rem;
-      color: #004b6b;
-    }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 2rem auto; max-width: 860px; color: #222; padding: 0 1rem; }
+    h1 { text-align: center; margin-bottom: 1rem; color: #004b6b; }
     form { margin-top: 1rem; }
-    fieldset.slot {
-      margin: 1.25em 0;
-      padding: 1em;
-      border: 2px solid #ccc;
-      border-radius: 10px;
-    }
+    fieldset.slot { margin: 1.25em 0; padding: 1em; border: 2px solid #ccc; border-radius: 10px; }
     legend { font-weight: bold; color: #333; }
     label { display: block; margin-bottom: .45em; }
     label.bloqueada { color: #888; }
@@ -31,14 +16,8 @@
     .flash { padding: 1em; border-radius: 6px; margin-bottom: 1em; }
     .flash.error { background: #ffe0e0; color: #a00; border: 1px solid #f99; }
     .flash.message { background: #e0f8e0; color: #060; border: 1px solid #9c9; }
-    input[type="text"], input[type="email"] {
-      width: 100%; padding: .6em; border: 1px solid #bbb; border-radius: 6px; margin-top: .25em;
-    }
-    button {
-      background: #0074a6; color: #fff; border: none;
-      padding: .75em 1.5em; border-radius: 6px; font-size: 1rem;
-      cursor: pointer; margin-top: 1rem;
-    }
+    input[type="text"], input[type="email"] { width: 100%; padding: .6em; border: 1px solid #bbb; border-radius: 6px; margin-top: .25em; }
+    button { background: #0074a6; color: #fff; border: none; padding: .75em 1.5em; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
     button:hover { background: #005c83; }
     small.muted { color: #666; }
   </style>
@@ -63,7 +42,7 @@
       <input type="email" name="email" required>
     </label>
 
-    <p><strong>Escolha de 1 a 4 oficinas (máximo 1 por horário):</strong></p>
+    <p><strong>Escolha de 1 a 4 oficinas (máximo 1 por horário e sem repetir):</strong></p>
 
     {% for slot in slots %}
       <fieldset class="slot">
@@ -73,6 +52,7 @@
             {% if w["name"] not in slot.bloqueadas %}
               <label>
                 <input type="radio"
+                       class="opt"
                        name="slot_{{ slot.id }}"
                        value="{{ w['id'] }}"
                        data-workshop-id="{{ w['id'] }}"
@@ -91,6 +71,7 @@
           <!-- opção de não escolher nada neste horário -->
           <label>
             <input type="radio"
+                   class="opt"
                    name="slot_{{ slot.id }}"
                    value=""
                    data-slot-id="{{ slot.id }}"
@@ -113,41 +94,42 @@
 
   <script>
     function updateSlots() {
-      // Coleta as oficinas já escolhidas em outros horários
-      const selectedValues = new Set();
-      document.querySelectorAll('input[type="radio"][name^="slot_"]:checked').forEach(r => {
-        if (r.value) selectedValues.add(r.value);
+      // Agrupa radios por oficina (mesmo ID em slots diferentes)
+      const radios = Array.from(document.querySelectorAll('input[type="radio"].opt'));
+      const byWorkshop = new Map(); // id -> [radios]
+      radios.forEach(r => {
+        const wid = r.dataset.workshopId;
+        if (!wid) return; // ignora "Não escolher neste horário"
+        if (!byWorkshop.has(wid)) byWorkshop.set(wid, []);
+        byWorkshop.get(wid).push(r);
       });
 
-      // Para cada slot, desabilita as opções (radios) que já estão escolhidas em outro slot
-      const allRadios = Array.from(document.querySelectorAll('input[type="radio"][name^="slot_"]'));
-      allRadios.forEach(r => {
-        const val = r.value;
-        if (!val) { // "Não escolher neste horário" nunca é bloqueado
+      // Primeiro, reabilita tudo que não está bloqueado por horário (não tocamos nos desabilitados do HTML)
+      byWorkshop.forEach(list => {
+        list.forEach(r => {
+          // só reabilita se não estiver desabilitado pelo HTML (bloqueio por horário):
+          // nosso seletor 'opt' só pega os habilitáveis, então ok reabilitar
           r.disabled = false;
-          return;
-        }
-        const slotId = r.dataset.slotId;
-        const checkedInThisSlot = document.querySelector('input[type="radio"][name="slot_' + slotId + '"]:checked');
-        const isSelectedHere = checkedInThisSlot && checkedInThisSlot.value === val;
+        });
+      });
 
-        // Se a oficina (val) já foi escolhida em outro slot, bloqueia aqui
-        // exceto se está selecionada neste mesmo slot (para permitir trocar dentro dele)
-        if (selectedValues.has(val) && !isSelectedHere) {
-          r.disabled = true;
-        } else {
-          r.disabled = false;
+      // Para cada oficina: se ela foi escolhida em algum slot, desabilita as opções dessa mesma oficina nos outros slots
+      byWorkshop.forEach(list => {
+        const checked = list.find(r => r.checked && r.value);
+        if (checked) {
+          list.forEach(r => {
+            if (r !== checked) r.disabled = true;
+          });
         }
       });
 
-      // Habilita o submit se tiver pelo menos 1 seleção e no máx 4
+      // Habilita o submit se nº de escolhas (com valor) ∈ [1,4]
       const chosenCount = Array.from(document.querySelectorAll('input[type="radio"][name^="slot_"]:checked'))
                                .filter(r => r.value).length;
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = !(chosenCount >= 1 && chosenCount <= 4);
     }
 
-    // Inicializa estado
     document.addEventListener('DOMContentLoaded', updateSlots);
   </script>
 </body>
