@@ -2,26 +2,24 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 import sqlite3, json, os, datetime, csv, io
 from contextlib import closing
 from werkzeug.security import check_password_hash, generate_password_hash
+from functools import wraps
 
-
+# --- Config ---
 APP_SECRET = os.environ.get("APP_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-# Para segurança, use hash no ADMIN_PASS_HASH. Para testes locais, se ADMIN_PASS estiver presente, um hash será gerado no boot.
+# Segurança: em produção prefira ADMIN_PASS_HASH; se ADMIN_PASS vier, geramos o hash no primeiro request
 ADMIN_PASS_HASH = os.environ.get("ADMIN_PASS_HASH")
 ADMIN_PASS = os.environ.get("ADMIN_PASS")
-
 
 app = Flask(__name__)
 app.secret_key = APP_SECRET
 DB_PATH = os.environ.get("DB_PATH", "inscricoes.db")
-
 
 # --- Helpers DB ---
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_db():
     with closing(get_db()) as conn:
@@ -42,8 +40,7 @@ def init_db():
             created_at TEXT NOT NULL
         );
         """)
-
-        # Agora o cursor existe aqui dentro
+        # Seed inicial (só se estiver vazio)
         cur.execute("SELECT COUNT(*) c FROM workshops")
         if cur.fetchone()["c"] == 0:
             names = [
@@ -58,20 +55,17 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 40, 0)
+                    (n, 40, 0)  # capacidade inicial 15
                 )
         conn.commit()
 
-# --- Auth simples (session) ---
+# --- Auth / bootstrap ---
 @app.before_first_request
 def _init():
     init_db()
     global ADMIN_PASS_HASH
     if not ADMIN_PASS_HASH and ADMIN_PASS:
         ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
-
-
-from functools import wraps
 
 def login_required(view):
     @wraps(view)
@@ -81,15 +75,173 @@ def login_required(view):
         return view(*args, **kwargs)
     return wrapped
 
+# --- Rotas públicas ---
+@app.route("/")
+def index():
+    with closing(get_db()) as conn:
+        ws = conn.execute("SELECT * FROM workshops ORDER BY id").fetchall()
+    return render_template("index.html", workshops=ws)
 
+@app.route("/inscrever", methods=["POST"])
+def inscrever():
+    full_name = (request.form.get("full_name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    consent = request.form.get("consent") == "on"
+    chosen = request.form.getlist("workshops")
+
+    # Validações
+    if not consent:
+        flash("Você precisa concordar com o tratamento dos seus dados.", "error")
+        return redirect(url_for("index"))
+    if not full_name:
+        flash("Informe seu nome completo.", "error")
+        return redirect(url_for("index"))
+    if not email or "@" not in email:
+        flash("Informe um e-mail válido.", "error")
+        return redirect(url_for("index"))
+    if len(chosen) != 4:
+        flash("Você deve selecionar exatamente 4 oficinas.", "error")
+        return redirect(url_for("index"))
+
+    chosen_ids = [int(x) for x in chosen]
+
+    conn = get_db()
+    try:
+        # Transação para evitar corrida de vagas
+        conn.execute("BEGIN IMMEDIATE")
+        cur = conn.cursor()
+
+        # Evita e-mail duplicado
+        cur.execute("SELECT 1 FROM attendees WHERE email = ?", (email,))
+        if cur.fetchone():
+            conn.execute("ROLLBACK")
+            flash("Este e-mail já está inscrito.", "error")
+            return redirect(url_for("index"))
+
+        # Verifica e reserva vagas
+        for wid in chosen_ids:
+            cur.execute("SELECT capacity, registered FROM workshops WHERE id = ?", (wid,))
+            row = cur.fetchone()
+            if not row:
+                conn.execute("ROLLBACK")
+                flash("Oficina inválida.", "error")
+                return redirect(url_for("index"))
+            cap, reg = row["capacity"], row["registered"]
+            if reg >= cap:
+                conn.execute("ROLLBACK")
+                flash("Uma das oficinas esgotou enquanto você enviava. Selecione outra.", "error")
+                return redirect(url_for("index"))
+            cur.execute("UPDATE workshops SET registered = registered + 1 WHERE id = ?", (wid,))
+
+        # Registra participante
+        now = datetime.datetime.utcnow().isoformat()
+        cur.execute(
+            "INSERT INTO attendees(full_name, email, selections, created_at) VALUES (?, ?, ?, ?)",
+            (full_name, email, json.dumps(chosen_ids), now)
+        )
+
+        conn.execute("COMMIT")
+        return redirect(url_for("sucesso"))
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        flash("Erro ao processar inscrição. Tente novamente.", "error")
+        return redirect(url_for("index"))
+    finally:
+        conn.close()
+
+@app.route("/sucesso")
+def sucesso():
+    return render_template("success.html")
+
+# --- Rotas de admin (login / logout / painel / export) ---
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        user = (request.form.get("username") or "").strip()
+        pwd = request.form.get("password") or ""
+        if user != ADMIN_USER:
+            error = "Usuário ou senha inválidos."
+        elif not ADMIN_PASS_HASH:
+            error = "Senha não configurada no servidor. Defina ADMIN_PASS_HASH ou ADMIN_PASS."
+        elif not check_password_hash(ADMIN_PASS_HASH, pwd):
+            error = "Usuário ou senha inválidos."
+        else:
+            session["admin_logged"] = True
+            flash("Login realizado com sucesso.", "message")
+            nxt = request.args.get("next") or url_for("admin")
+            return redirect(nxt)
+    return render_template("login.html", error=error)
+
+@app.route("/logout")
+@login_required
+def logout():
+    session.clear()
+    flash("Sessão encerrada.", "message")
+    return redirect(url_for("login"))
+
+@app.route("/admin")
+@login_required
+def admin():
+    with closing(get_db()) as conn:
+        ws = conn.execute("""
+            SELECT id, name, capacity, registered, (capacity-registered) AS remaining
+            FROM workshops ORDER BY id
+        """).fetchall()
+        attendees = conn.execute("""
+            SELECT full_name, email, selections, created_at
+            FROM attendees
+            ORDER BY created_at DESC
+        """).fetchall()
+
+    parsed = []
+    for a in attendees:
+        try:
+            sels = json.loads(a["selections"]) or []
+        except Exception:
+            sels = []
+        parsed.append({
+            "full_name": a["full_name"],
+            "email": a["email"],
+            "selections": sels,
+            "created_at": a["created_at"],
+        })
+    return render_template("admin.html", workshops=ws, attendees=parsed)
+
+@app.route("/export.csv")
+@login_required
+def export_csv():
+    # Gera um CSV com duas seções (workshops e attendees)
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    with closing(get_db()) as conn:
+        ws = conn.execute("SELECT id, name, capacity, registered FROM workshops ORDER BY id").fetchall()
+        at = conn.execute("SELECT full_name, email, selections, created_at FROM attendees ORDER BY created_at DESC").fetchall()
+
+    writer.writerow(["WORKSHOPS"])
+    writer.writerow(["id", "name", "capacity", "registered", "remaining"])
+    for w in ws:
+        writer.writerow([w["id"], w["name"], w["capacity"], w["registered"], w["capacity"] - w["registered"]])
+
+    writer.writerow([])
+    writer.writerow(["ATTENDEES"])
+    writer.writerow(["full_name", "email", "selections_ids", "created_at"])
+    for a in at:
+        writer.writerow([a["full_name"], a["email"], a["selections"], a["created_at"]])
+
+    mem = io.BytesIO(output.getvalue().encode("utf-8"))
+    mem.seek(0)
+
+    resp = make_response(mem.read())
+    resp.headers.set("Content-Type", "text/csv; charset=utf-8")
+    resp.headers.set("Content-Disposition", "attachment", filename="inscricoes.csv")
+    return resp
+
+# --- Dev local ---
 if __name__ == "__main__":
+    # Em produção (Render) quem inicia é o Gunicorn
     app.run(debug=True)
-
-
-
-
-
-
-
-
-
