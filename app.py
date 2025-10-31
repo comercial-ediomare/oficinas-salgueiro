@@ -119,8 +119,11 @@ def inscrever():
     if not email or "@" not in email:
         flash("Informe um e-mail válido.", "error")
         return redirect(url_for("index"))
-    if len(chosen) != 4:
-        flash("Você deve selecionar exatamente 4 oficinas.", "error")
+    if len(chosen) < 1:
+        flash("Selecione pelo menos 1 oficina.", "error")
+        return redirect(url_for("index"))
+    if len(chosen) > 4:
+        flash("Você pode selecionar no máximo 4 oficinas.", "error")
         return redirect(url_for("index"))
 
     chosen_ids = [int(x) for x in chosen]
@@ -265,3 +268,4 @@ def export_csv():
 if __name__ == "__main__":
     # Em produção (Render) quem inicia é o Gunicorn
     app.run(debug=True)
+
