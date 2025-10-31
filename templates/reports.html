@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Relatórios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 1200px; margin: 2rem auto; padding: 0 1rem; color:#222; }
+    h1, h2 { color:#004b6b; }
+    .top { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+    a.btn { display:inline-block; background:#0074a6; color:#fff; text-decoration:none; padding:.6rem .9rem; border-radius:6px; }
+    a.btn:hover { background:#005c83; }
+    table { width:100%; border-collapse:collapse; margin:1rem 0 2rem; }
+    th, td { border:1px solid #ddd; padding:.55rem .6rem; vertical-align:top; }
+    th { background:#f6f6f6; text-align:left; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>Relatórios</h1>
+    <a class="btn" href="{{ url_for('admin') }}">Voltar ao Painel</a>
+    <a class="btn" href="{{ url_for('export_by_workshop_csv') }}">Exportar por Oficina (CSV)</a>
+    <a class="btn" href="{{ url_for('export_by_slot_csv') }}">Exportar por Horário (CSV)</a>
+    <a class="btn" href="{{ url_for('logout') }}">Sair</a>
+  </div>
+
+  <h2>Resumo por Oficina (total geral)</h2>
+  <table>
+    <thead>
+      <tr><th>Oficina</th><th>Inscritos</th></tr>
+    </thead>
+    <tbody>
+      {% for wid, data in ws %}
+        <tr>
+          <td>{{ data.name }}</td>
+          <td>{{ data.count }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Resumo por Horário</h2>
+  {% for slot in slots %}
+    <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
+    <table>
+      <thead>
+        <tr><th>Oficina</th><th>Inscritos nesse horário</th></tr>
+      </thead>
+      <tbody>
+        {% for wid, data in slot.rows %}
+          <tr>
+            <td>{{ data.name }}</td>
+            <td>{{ data.count }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+</body>
+</html>
