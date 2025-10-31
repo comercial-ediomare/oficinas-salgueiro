@@ -63,22 +63,25 @@ for n in names:
 @app.before_first_request
 def _init():
     init_db()
-global ADMIN_PASS_HASH
-if not ADMIN_PASS_HASH and ADMIN_PASS:
-ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
+    global ADMIN_PASS_HASH
+    if not ADMIN_PASS_HASH and ADMIN_PASS:
+        ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
 
 
 from functools import wraps
 
-
 def login_required(view):
-@wraps(view)
-def wrapped(*args, **kwargs):
-if not session.get("admin_logged"):
-return redirect(url_for("login", next=request.path))
-return view(*args, **kwargs)
-return wrapped
-app.run(debug=True)
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("admin_logged"):
+            return redirect(url_for("login", next=request.path))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
 
 
 
