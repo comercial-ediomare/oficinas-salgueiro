@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
 "INSERT INTO attendees(full_name, email, selections, created_at) VALUES (?, ?, ?, ?)",
 (full_name, email, json.dumps(chosen_ids), now),
-)
 
 
 conn.execute("COMMIT")
@@ -96,4 +95,5 @@ return resp
 
 
 if __name__ == "__main__":
+
 app.run(debug=True)
