@@ -1,49 +1,136 @@
-{% extends "base.html" %}
-{% block title %}Inscrição em Oficinas{% endblock %}
-{% block content %}
-  <h1>Inscreva-se nas Oficinas</h1>
-  <p>Escolha <strong>de 1 a 4</strong> entre as 7 oficinas disponíveis.</p>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Inscrição nas Oficinas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 2rem auto;
+      max-width: 800px;
+      color: #222;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 1rem;
+      color: #004b6b;
+    }
+    form {
+      margin-top: 1rem;
+    }
+    fieldset.slot {
+      margin: 1.5em 0;
+      padding: 1em;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+    }
+    legend {
+      font-weight: bold;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-bottom: .4em;
+    }
+    label.bloqueada {
+      color: #888;
+    }
+    label.bloqueada small {
+      color: #aaa;
+    }
+    .flash {
+      padding: 1em;
+      border-radius: 6px;
+      margin-bottom: 1em;
+    }
+    .flash.error {
+      background: #ffe0e0;
+      color: #a00;
+      border: 1px solid #f99;
+    }
+    .flash.message {
+      background: #e0f8e0;
+      color: #060;
+      border: 1px solid #9c9;
+    }
+    button {
+      background: #0074a6;
+      color: #fff;
+      border: none;
+      padding: .75em 1.5em;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    button:hover {
+      background: #005c83;
+    }
+  </style>
+</head>
+<body>
+  <h1>Inscrição nas Oficinas</h1>
 
-  <form method="POST" action="{{ url_for('inscrever') }}">
-    <label for="full_name" class="label">Nome completo</label>
-    <input id="full_name" name="full_name" type="text" required placeholder="Seu nome completo">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+        <div class="flash {{ cat }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
 
-    <label for="email" class="label">E-mail</label>
-    <input id="email" name="email" type="email" required placeholder="seu@email.com">
-
-    <fieldset class="field">
-      <legend>Oficinas (selecionadas: <span id="count">0</span>/4)</legend>
-      <ul class="list">
-        {% for w in workshops %}
-          <li>
-            <label class="option">
-              <input type="checkbox" name="workshops" value="{{ w.id }}"
-                {% if w.capacity - w.registered <= 0 %} disabled {% endif %}>
-              <span class="name">{{ w.name }}</span>
-              <span class="badge">
-                {% if w.capacity - w.registered > 0 %}
-                  {{ w.capacity - w.registered }} vagas
-                {% else %}
-                  Esgotado
-                {% endif %}
-              </span>
-            </label>
-          </li>
-        {% endfor %}
-      </ul>
-      <p class="hint">Selecione entre 1 e 4 oficinas.</p>
-    </fieldset>
-
-    <label class="consent">
-      <input type="checkbox" name="consent" required>
-      Concordo com o tratamento dos meus dados para fins de inscrição.
+  <form method="post" action="{{ url_for('inscrever') }}">
+    <label>Nome completo:
+      <input type="text" name="full_name" required style="width:100%; padding:.5em;">
     </label>
 
-    <button type="submit" id="submitBtn" disabled>Concluir inscrição</button>
+    <label>E-mail:
+      <input type="email" name="email" required style="width:100%; padding:.5em;">
+    </label>
+
+    <p><strong>Escolha até 4 oficinas (no mínimo 1):</strong></p>
+
+    {% for slot in slots %}
+      <fieldset class="slot">
+        <legend>{{ loop.index }}º Horário — {{ slot.hora }}</legend>
+        {% for w in workshops %}
+          {% if w["name"] not in slot.bloqueadas %}
+            <label>
+              <input type="checkbox" name="workshops" value="{{ w['id'] }}" onchange="limitSelection(this)">
+              {{ w["name"] }}
+              <small>({{ w["registered"] }}/{{ w["capacity"] }} vagas ocupadas)</small>
+            </label>
+          {% else %}
+            <label class="bloqueada">
+              <input type="checkbox" disabled>
+              {{ w["name"] }} <small>(não disponível neste horário)</small>
+            </label>
+          {% endif %}
+        {% endfor %}
+      </fieldset>
+    {% endfor %}
+
+    <p>
+      <label>
+        <input type="checkbox" name="consent" required>
+        Autorizo o uso dos meus dados para fins de organização das oficinas.
+      </label>
+    </p>
+
+    <button type="submit">Enviar inscrição</button>
   </form>
-{% endblock %}
 
-{% block scripts %}
-<script src="{{ url_for('static', filename='app.js') }}"></script>
-
-{% endblock %}
+  <script>
+    const maxSelections = 4;
+    function limitSelection(chk) {
+      const all = document.querySelectorAll('input[name="workshops"]:checked');
+      if (all.length > maxSelections) {
+        alert("Você pode selecionar no máximo " + maxSelections + " oficinas.");
+        chk.checked = false;
+      }
+    }
+  </script>
+</body>
+</html>
