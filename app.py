@@ -61,7 +61,7 @@ for n in names:
 # --- Auth simples (session) ---
 @app.before_first_request
 def _init():
-init_db()
+    init_db()
 global ADMIN_PASS_HASH
 if not ADMIN_PASS_HASH and ADMIN_PASS:
 ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
@@ -78,6 +78,7 @@ return redirect(url_for("login", next=request.path))
 return view(*args, **kwargs)
 return wrapped
 app.run(debug=True)
+
 
 
 
