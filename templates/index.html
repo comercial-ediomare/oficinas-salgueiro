@@ -1,4 +1,4 @@
-<!doctype html>
+<!doctype html> 
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -48,33 +48,47 @@
       <fieldset class="slot">
         <legend>{{ loop.index }}º Horário — {{ slot.hora }}</legend>
         <div class="oficinas">
+          {% set slotAvail = avail.get(slot.id, {}) %}
           {% for w in workshops %}
-            {% if w["name"] not in slot.bloqueadas %}
+            {% set info = slotAvail.get(w['id']) %}
+            {% set is_blocked = (info is none) %}
+            {% set remaining = (info.remaining if info else 0) %}
+            {% set cap = (info.capacity if info else 0) %}
+            {% set is_full = (not is_blocked and remaining <= 0) %}
+
+            {% if not is_blocked %}
               <label>
                 <input type="radio"
-                       class="opt"
+                       class="opt oficina-radio"
                        name="slot_{{ slot.id }}"
                        value="{{ w['id'] }}"
                        data-workshop-id="{{ w['id'] }}"
                        data-slot-id="{{ slot.id }}"
-                       onchange="updateSlots()">
+                       {% if is_full %}disabled data-locked="full"{% endif %}
+                       onchange="handleChange(event)">
                 {{ w["name"] }}
+                {% if is_full %}
+                  <small class="muted">(lotada neste horário)</small>
+                {% else %}
+                  <small class="muted">(vagas: {{ remaining }}/{{ cap }})</small>
+                {% endif %}
               </label>
             {% else %}
               <label class="bloqueada">
-                <input type="radio" disabled>
+                <input type="radio" disabled data-locked="blocked">
                 {{ w["name"] }} <small class="muted">(não disponível neste horário)</small>
               </label>
             {% endif %}
           {% endfor %}
-          <!-- opção de não escolher nada neste horário -->
+
+          <!-- opção de não escolher nada neste horário (no FINAL) -->
           <label>
             <input type="radio"
-                   class="opt"
+                   class="opt slot-none"
                    name="slot_{{ slot.id }}"
                    value=""
                    data-slot-id="{{ slot.id }}"
-                   onchange="updateSlots()">
+                   onchange="handleChange(event)">
             NÃO ESCOLHER NESTE HORÁRIO
           </label>
         </div>
@@ -92,46 +106,124 @@
   </form>
 
   <script>
-    function updateSlots() {
-      // Agrupa radios por oficina (mesmo ID em slots diferentes)
-      const radios = Array.from(document.querySelectorAll('input[type="radio"].opt'));
-      const byWorkshop = new Map(); // id -> [radios]
-      radios.forEach(r => {
+    // Utilitários
+    const submitBtn = document.getElementById('submitBtn');
+
+    function qsa(sel, ctx=document){ return Array.from(ctx.querySelectorAll(sel)); }
+
+    // Mapa: slotId -> radio "não escolher"
+    function mapNoneBySlot() {
+      const map = {};
+      qsa('.slot-none').forEach(n => { map[n.dataset.slotId] = n; });
+      return map;
+    }
+
+    // Agrupar radios por oficina (id)
+    function groupByWorkshop() {
+      const byWorkshop = new Map();
+      qsa('input[type="radio"].oficina-radio').forEach(r => {
         const wid = r.dataset.workshopId;
-        if (!wid) return; // ignora "Não escolher neste horário"
         if (!byWorkshop.has(wid)) byWorkshop.set(wid, []);
         byWorkshop.get(wid).push(r);
       });
+      return byWorkshop;
+    }
 
-      // Primeiro, reabilita tudo que não está bloqueado por horário (não tocamos nos desabilitados do HTML)
-      byWorkshop.forEach(list => {
-        list.forEach(r => {
-          // só reabilita se não estiver desabilitado pelo HTML (bloqueio por horário):
-          // nosso seletor 'opt' só pega os habilitáveis, então ok reabilitar
-          r.disabled = false;
-        });
+    // Lê seleções atuais: { slotId: value } ("" ou workshopId)
+    function getSelections() {
+      const out = {};
+      const names = [...new Set(qsa('input[type="radio"][name^="slot_"]').map(r => r.name))];
+      names.forEach(name => {
+        const checked = document.querySelector(`input[name="${name}"]:checked`);
+        const slotId = name.replace('slot_', '');
+        out[slotId] = checked ? checked.value : "";
       });
+      return out;
+    }
 
-      // Para cada oficina: se ela foi escolhida em algum slot, desabilita as opções dessa mesma oficina nos outros slots
-      byWorkshop.forEach(list => {
-        const checked = list.find(r => r.checked && r.value);
-        if (checked) {
-          list.forEach(r => {
-            if (r !== checked) r.disabled = true;
-          });
-        }
-      });
-
-      // Habilita o submit se nº de escolhas (com valor) ∈ [1,4]
-      const chosenCount = Array.from(document.querySelectorAll('input[type="radio"][name^="slot_"]:checked'))
-                               .filter(r => r.value).length;
-      const submitBtn = document.getElementById('submitBtn');
+    // Botão submit habilitado se nº de escolhas ∈ [1,4]
+    function updateSubmitEnabled() {
+      const chosenCount = qsa('input[type="radio"][name^="slot_"]:checked')
+                           .filter(r => r.value).length;
       submitBtn.disabled = !(chosenCount >= 1 && chosenCount <= 4);
     }
 
-    document.addEventListener('DOMContentLoaded', updateSlots);
+    // Reaplica as regras de (não) duplicidade entre horários
+    function applyCrossDisable() {
+      const selections = getSelections();
+      const chosenWids = new Set(Object.values(selections).filter(v => v && /^\d+$/.test(v)));
+      const byWorkshop = groupByWorkshop();
+
+      // 1) Reabilita dinamicamente tudo que NÃO veio travado pelo servidor (data-locked)
+      byWorkshop.forEach(list => {
+        list.forEach(r => {
+          if (!r.dataset.locked) {
+            r.disabled = false;
+          }
+        });
+      });
+
+      // 2) Se uma oficina foi escolhida em um slot, desabilita essa mesma oficina nos outros slots
+      byWorkshop.forEach(list => {
+        // Descobre se está escolhida em algum slot
+        const checked = list.find(r => r.checked && r.value);
+        if (checked) {
+          list.forEach(r => {
+            if (r !== checked && !r.dataset.locked) {
+              r.disabled = true;
+            }
+          });
+        } else {
+          // Se não há nenhum slot com essa oficina marcada, nada a fazer aqui;
+          // a desabilitação dinâmica será resolvida pelo conjunto chosenWids abaixo.
+        }
+      });
+
+      // 3) Blindagem adicional: qualquer radio de oficina cujo WID esteja escolhido em OUTRO slot fica desabilitado
+      qsa('.oficina-radio').forEach(r => {
+        if (r.dataset.locked) return; // respeita bloqueio do servidor (bloqueada/lotada)
+        const wid = r.dataset.workshopId;
+        const slot = r.dataset.slotId;
+        const current = selections[slot]; // "" ou wid
+        const chosenElsewhere = chosenWids.has(wid) && current !== wid;
+        if (chosenElsewhere) {
+          r.disabled = true;
+        }
+      });
+
+      updateSubmitEnabled();
+    }
+
+    // Ao escolher uma oficina, desmarca a mesma oficina em outros slots e marca "não escolher" nesses slots
+    function enforceUniqueOnSelect(changedRadio) {
+      if (!changedRadio.classList.contains('oficina-radio')) return;
+      if (!changedRadio.checked) return;
+
+      const wid = changedRadio.dataset.workshopId;
+      const slot = changedRadio.dataset.slotId;
+      const noneBySlot = mapNoneBySlot();
+
+      qsa(`.oficina-radio[data-workshop-id="${wid}"]`).forEach(r => {
+        if (r === changedRadio) return;
+        if (r.checked) {
+          r.checked = false;
+          const otherSlot = r.dataset.slotId;
+          const none = noneBySlot[otherSlot];
+          if (none) none.checked = true;
+        }
+      });
+    }
+
+    // Handler central de mudança
+    function handleChange(e) {
+      enforceUniqueOnSelect(e.target);
+      applyCrossDisable();
+    }
+
+    // Estado inicial: nada selecionado; aplica apenas regras cruzadas (respeitando data-locked do servidor)
+    document.addEventListener('DOMContentLoaded', () => {
+      applyCrossDisable();
+    });
   </script>
 </body>
 </html>
-
-
