@@ -350,6 +350,12 @@ def admin():
     parsed_attendees = []
     for a in at_rows:
         try:
+            utc_dt = dt.fromisoformat(a["created_at"])
+            local_dt = utc_dt - timedelta(hours=3)  # GMT-3
+            created_local = local_dt.strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            created_local = a["created_at"]
+        try:
             sels = json.loads(a["selections"]) or []
         except Exception:
             sels = []
@@ -357,7 +363,8 @@ def admin():
             "full_name": a["full_name"],
             "email": a["email"],
             "selections": sels,
-            "created_at": a["created_at"],
+            "created_at": a["created_at"],       # original (UTC ISO)
+            "created_at_local": created_local,   # exibida no admin
         })
                 
     return render_template(
@@ -604,6 +611,7 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
