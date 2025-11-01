@@ -86,11 +86,11 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 30, 0)  # capacidade inicial = 30
+                    (n, 40, 0)  # capacidade inicial = 40
                 )
 
-        # --- MIGRAÇÃO: atualizar capacidade para 30 em oficinas já existentes
-        cur.execute("UPDATE workshops SET capacity = 30 WHERE capacity <> 30")
+        # --- MIGRAÇÃO: atualizar capacidade para 40 em oficinas já existentes
+        cur.execute("UPDATE workshops SET capacity = 40 WHERE capacity <> 40")
 
         conn.commit()
 
@@ -463,5 +463,6 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
