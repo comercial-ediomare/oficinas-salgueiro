@@ -131,8 +131,9 @@
       <tr>
         <th>Nome</th>
         <th>E-mail</th>
-        <th>Oficinas Escolhidas</th>
-        <th>Data/Hora</th>
+        <th>Escolhas (IDs)</th>
+        <th>Data (GMT-3)</th>
+        <th>Ações</th>
       </tr>
     </thead>
     <tbody>
@@ -141,17 +142,26 @@
           <td>{{ a.full_name }}</td>
           <td>{{ a.email }}</td>
           <td>
-            {% for sel in a.selections %}
-              {{ sel }}{% if not loop.last %}, {% endif %}
-            {% endfor %}
+            {% if a.selections and a.selections|length > 0 %}
+              {{ a.selections|join(", ") }}
+            {% else %}
+              <em>—</em>
+            {% endif %}
           </td>
           <td>{{ a.created_at_local }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_attendee', att_id=a.id) }}" onsubmit="return confirm('Excluir esta inscrição?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn" style="background:#c62828;">Excluir</button>
+            </form>
+          </td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 </body>
 </html>
+
 
 
 
