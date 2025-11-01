@@ -446,15 +446,33 @@ def build_reports():
 @app.route("/reports")
 @login_required
 def reports():
-    by_workshop, by_slot = build_reports()
-    ws_sorted = sorted(by_workshop.items(), key=lambda kv: kv[1]["name"])
-    slots_view = []
-    for s in SLOTS:
-        sid = s["id"]
-        items = by_slot[sid]["items"]
-        rows = sorted(items.items(), key=lambda kv: kv[1]["name"])
-        slots_view.append({"id": sid, "hora": s["hora"], "rows": rows})
-    return render_template("reports.html", ws=ws_sorted, slots=slots_view)
+    # Monta uma matriz: 1 linha por pessoa, colunas = horários
+    with closing(get_db()) as conn:
+        attendees = conn.execute(
+            "SELECT full_name, email, selections_map FROM attendees ORDER BY full_name"
+        ).fetchall()
+        wmap = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM workshops")}
+    people = []
+    for a in attendees:
+        try:
+            sel_map = json.loads(a["selections_map"]) if a["selections_map"] else {}
+        except Exception:
+            sel_map = {}
+        row = {
+            "full_name": a["full_name"],
+            "email": a["email"],
+        }
+        # Preenche por slot (se não escolheu, fica vazio)
+        for s in SLOTS:
+            sid = s["id"]
+            wid = sel_map.get(str(sid))
+            if wid is None:
+                wid = sel_map.get(sid)  # caso tenha sido salvo como int
+            row[f"slot_{sid}"] = wmap.get(int(wid), "") if wid else ""
+        people.append(row)
+
+    # Envia só o necessário para o template
+    return render_template("reports.html", slots=SLOTS, people=people)
 
 @app.route("/export_by_workshop.csv")
 @login_required
@@ -611,6 +629,7 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
