@@ -288,38 +288,67 @@ def logout():
 @login_required
 def admin():
     with closing(get_db()) as conn:
-        # Totais por oficina com base na tabela por horário
-        rows = conn.execute("""
-            SELECT w.id,
-                   w.name,
-                   COALESCE(SUM(ws.capacity), 0)  AS cap_total,
-                   COALESCE(SUM(ws.registered), 0) AS reg_total
+        # 1) Capacidade total por oficina (somando todos os horários válidos)
+        caps = conn.execute("""
+            SELECT w.id AS wid,
+                   w.name AS name,
+                   COALESCE(SUM(ws.capacity), 0)  AS cap_total
             FROM workshops w
             LEFT JOIN workshop_slots ws ON ws.workshop_id = w.id
             GROUP BY w.id, w.name
             ORDER BY w.id
         """).fetchall()
 
-        # Inscritos (lista)
+        # 2) Recontar inscritos por oficina a partir de ATTENDEES (fonte de verdade)
         attendees = conn.execute("""
+            SELECT selections
+            FROM attendees
+        """).fetchall()
+
+    # Monta dicionários auxiliares
+    cap_by_wid = {int(r["wid"]): int(r["cap_total"]) for r in caps}
+    name_by_wid = {int(r["wid"]): r["name"] for r in caps}
+
+    # Contagem de inscritos por oficina reconstituída das escolhas
+    reg_by_wid = {wid: 0 for wid in cap_by_wid.keys()}
+    for a in attendees:
+        try:
+            sel = json.loads(a["selections"]) if a["selections"] else []
+            if isinstance(sel, list):
+                for wid_raw in sel:
+                    try:
+                        wid = int(wid_raw)
+                        if wid in reg_by_wid:
+                            reg_by_wid[wid] += 1
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # Monta view do painel
+    workshops_view = []
+    for wid in sorted(cap_by_wid.keys()):
+        cap_total = cap_by_wid[wid]
+        reg_total = reg_by_wid.get(wid, 0)
+        remaining = max(0, cap_total - reg_total)
+        workshops_view.append({
+            "id": wid,
+            "name": name_by_wid.get(wid, f"ID {wid}"),
+            "capacity_total": cap_total,
+            "registered_total": reg_total,
+            "remaining_total": remaining,
+        })
+
+    # Lista de inscritos (exibição)
+    with closing(get_db()) as conn:
+        at_rows = conn.execute("""
             SELECT full_name, email, selections, created_at
             FROM attendees
             ORDER BY created_at DESC
         """).fetchall()
 
-    workshops_view = []
-    for r in rows:
-        remaining = int(r["cap_total"]) - int(r["reg_total"])
-        workshops_view.append({
-            "id": r["id"],
-            "name": r["name"],
-            "capacity_total": int(r["cap_total"]),
-            "registered_total": int(r["reg_total"]),
-            "remaining_total": max(0, remaining),
-        })
-
     parsed_attendees = []
-    for a in attendees:
+    for a in at_rows:
         try:
             sels = json.loads(a["selections"]) or []
         except Exception:
@@ -337,7 +366,6 @@ def admin():
         attendees=parsed_attendees,
         csrf_token=_get_csrf_token()
     )
-
 
 # --- Exports básicos ---
 @app.route("/export.csv")
@@ -576,5 +604,6 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
