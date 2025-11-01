@@ -363,15 +363,14 @@ def export_by_slot_csv():
     resp.headers["Content-Disposition"] = "attachment; filename=relatorio_por_horario.csv"
     return resp
 
-@app.route("/export_names_by_workshop.csv")
+@app.route("/export_grouped_names_by_workshop_slot.csv")
 @login_required
-def export_names_by_workshop_csv():
+def export_grouped_names_by_workshop_slot_csv():
     """
-    Exporta um CSV com as colunas:
-    workshop_id, workshop_name, full_name, email, slot_id, hora
-    (uma linha por pessoa inscrita em cada oficina)
+    CSV agrupado por (oficina, horário):
+    workshop_id, workshop_name, slot_id, hora, inscritos_count, nomes(;), emails(;)
     """
-    # Carrega mapas
+    # Carregar dados
     with closing(get_db()) as conn:
         ws = conn.execute("SELECT id, name FROM workshops ORDER BY id").fetchall()
         attendees = conn.execute(
@@ -379,54 +378,68 @@ def export_names_by_workshop_csv():
         ).fetchall()
 
     id2name = {int(r["id"]): r["name"] for r in ws}
-    # slot_id -> hora (para preencher a coluna 'hora')
     slot_hour = {s["id"]: s["hora"] for s in SLOTS}
 
-    # Monta CSV em memória
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["workshop_id", "workshop_name", "full_name", "email", "slot_id", "hora"])
+    # Agrupador: (wid, sid) -> {"names":[], "emails":[]}
+    grouped = {}
 
     for a in attendees:
-        # lista de oficinas (IDs) escolhidas por essa pessoa
+        # lista de oficinas (IDs) dessa pessoa
         try:
             sel_list = json.loads(a["selections"]) if a["selections"] else []
         except Exception:
             sel_list = []
 
-        # mapa slot->workshop para achar em qual horário a pessoa selecionou cada oficina
+        # mapa slot->workshop
         try:
             sel_map = json.loads(a["selections_map"]) if a["selections_map"] else {}
         except Exception:
             sel_map = {}
 
-        # Inverter o mapa para workshop->slot (facilita achar o horário)
+        # inverter para workshop->slot
         wid_to_slot = {}
         if isinstance(sel_map, dict):
             for sid_raw, wid_raw in sel_map.items():
                 try:
-                    sid_i = int(sid_raw)
-                    wid_i = int(wid_raw)
+                    sid_i = int(sid_raw); wid_i = int(wid_raw)
                     wid_to_slot[wid_i] = sid_i
                 except Exception:
                     pass
 
-        # Uma linha por (oficina, pessoa)
         for wid_raw in sel_list or []:
             try:
                 wid = int(wid_raw)
             except Exception:
                 continue
-            wname = id2name.get(wid, f"ID {wid}")
-            sid = wid_to_slot.get(wid)  # pode ser None em inscrições antigas
-            hora = slot_hour.get(sid, "")
-            writer.writerow([wid, wname, a["full_name"], a["email"], sid or "", hora])
+            # tenta achar o slot dessa oficina pra essa pessoa
+            sid = wid_to_slot.get(wid)  # pode ser None
+            key = (wid, sid)
+            rec = grouped.setdefault(key, {"names": [], "emails": []})
+            rec["names"].append(a["full_name"])
+            rec["emails"].append(a["email"])
 
-    mem = io.BytesIO(output.getvalue().encode("utf-8"))
-    mem.seek(0)
+    # Montar CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["workshop_id", "workshop_name", "slot_id", "hora", "inscritos_count", "nomes", "emails"])
+
+    # ordenar: por nome da oficina, depois por slot/hora
+    def sort_key(item):
+        (wid, sid), rec = item
+        wname = id2name.get(wid, f"ID {wid}")
+        hora = slot_hour.get(sid, "") if sid else ""
+        return (wname.lower(), hora)
+    for (wid, sid), rec in sorted(grouped.items(), key=sort_key):
+        wname = id2name.get(wid, f"ID {wid}")
+        hora = slot_hour.get(sid, "") if sid else ""
+        names_join = "; ".join(rec["names"])
+        emails_join = "; ".join(rec["emails"])
+        writer.writerow([wid, wname, sid or "", hora, len(rec["names"]), names_join, emails_join])
+
+    mem = io.BytesIO(output.getvalue().encode("utf-8")); mem.seek(0)
     resp = make_response(mem.read())
     resp.headers["Content-Type"] = "text/csv; charset=utf-8"
-    resp.headers["Content-Disposition"] = "attachment; filename=nomes_por_oficina.csv"
+    resp.headers["Content-Disposition"] = "attachment; filename=nomes_agrupados_por_oficina_e_horario.csv"
     return resp
 
 # --- Resetar Base (apagar inscrições e zerar contadores) ---
@@ -450,4 +463,5 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
