@@ -5,54 +5,25 @@
   <title>Relatórios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    :root {
-      --brand:#004b6b;
-      --btn:#0074a6;
-      --btn-hover:#005c83;
-      --text:#222;
-      --muted:#666;
-      --border:#ddd;
-      --bg:#fff;
-      --table-head:#f6f6f6;
+    :root{
+      --brand:#004b6b; --btn:#0074a6; --btn-hover:#005c83;
+      --text:#222; --muted:#666; --border:#ddd; --bg:#fff; --thead:#f6f6f6;
     }
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      max-width: 1200px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-      color: var(--text);
-      background: var(--bg);
-    }
-    h1 { color: var(--brand); margin: .2rem 0 .8rem; font-size: 1.8rem; }
-    .top { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
-    .spacer { flex:1; }
-
-    a.btn, button.btn {
-      display:inline-block;
-      background: var(--btn);
-      color:#fff; text-decoration:none;
-      padding:.6rem .9rem; border-radius:6px; border:none; cursor:pointer;
-      font: inherit;
-    }
-    a.btn:hover, button.btn:hover { background: var(--btn-hover); }
-
-    table {
-      width:100%;
-      border-collapse:collapse;
-      margin:1rem 0 2rem;
-      background:#fff;
-    }
-    th, td {
-      border:1px solid var(--border);
-      padding:.55rem .6rem;
-      vertical-align:top;
-      text-align:left;
-      font-size:.96rem;
-    }
-    th { background: var(--table-head); font-weight:600; }
-    .nowrap { white-space: nowrap; }
-    .muted { color: var(--muted); }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+         max-width:1200px;margin:2rem auto;padding:0 1rem;background:var(--bg);color:var(--text)}
+    h1{color:var(--brand);margin:.2rem 0 .8rem;font-size:1.8rem}
+    .top{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+    .spacer{flex:1}
+    a.btn{display:inline-block;background:var(--btn);color:#fff;text-decoration:none;
+          padding:.6rem .9rem;border-radius:6px;border:none;cursor:pointer}
+    a.btn:hover{background:var(--btn-hover)}
+    table{width:100%;border-collapse:collapse;margin:1rem 0 2rem;background:#fff}
+    th,td{border:1px solid var(--border);padding:.55rem .6rem;vertical-align:top;text-align:left}
+    th{background:var(--thead);font-weight:600}
+    .nowrap{white-space:nowrap}
+    .muted{color:var(--muted)}
+    .count{text-align:center;width:3rem}
   </style>
 </head>
 <body>
@@ -66,6 +37,7 @@
   <table>
     <thead>
       <tr>
+        <th class="count">#</th>
         <th>Nome</th>
         <th class="nowrap">E-mail</th>
         {% for slot in slots %}
@@ -77,6 +49,7 @@
       {% if people and people|length > 0 %}
         {% for p in people %}
           <tr>
+            <td class="count">{{ loop.index }}</td>
             <td>{{ p.full_name }}</td>
             <td class="nowrap">{{ p.email }}</td>
             {% for slot in slots %}
@@ -86,10 +59,14 @@
         {% endfor %}
       {% else %}
         <tr>
-          <td colspan="{{ 2 + slots|length }}"><em class="muted">Nenhuma inscrição encontrada.</em></td>
+          <td colspan="{{ 3 + slots|length }}"><em class="muted">Nenhuma inscrição encontrada.</em></td>
         </tr>
       {% endif %}
     </tbody>
   </table>
+
+  {% if people and people|length > 0 %}
+    <p><strong>Total de inscritos:</strong> {{ people|length }}</p>
+  {% endif %}
 </body>
 </html>
