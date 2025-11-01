@@ -609,6 +609,67 @@ def export_grouped_names_by_workshop_slot_csv():
     resp.headers["Content-Disposition"] = "attachment; filename=nomes_agrupados_por_oficina_e_horario.csv"
     return resp
 
+@app.route("/export_names_rows_by_workshop_slot.csv")
+@login_required
+def export_names_rows_by_workshop_slot_csv():
+    # Linha a linha: Oficina | Horário | Nome | E-mail
+    with closing(get_db()) as conn:
+        ws = conn.execute("SELECT id, name FROM workshops ORDER BY name").fetchall()
+        attendees = conn.execute(
+            "SELECT full_name, email, selections, selections_map FROM attendees ORDER BY full_name"
+        ).fetchall()
+
+    id2name = {int(r["id"]): r["name"] for r in ws}
+    slot_hour = {s["id"]: s["hora"] for s in SLOTS}
+
+    rows = []
+    for a in attendees:
+        try:
+            sel_list = json.loads(a["selections"]) if a["selections"] else []
+        except Exception:
+            sel_list = []
+        try:
+            sel_map = json.loads(a["selections_map"]) if a["selections_map"] else {}
+        except Exception:
+            sel_map = {}
+
+        # Mapear oficina -> slot escolhido por essa pessoa
+        wid_to_slot = {}
+        if isinstance(sel_map, dict):
+            for sid_raw, wid_raw in sel_map.items():
+                try:
+                    sid_i = int(sid_raw); wid_i = int(wid_raw)
+                    wid_to_slot[wid_i] = sid_i
+                except Exception:
+                    pass
+
+        # Para cada oficina escolhida, escreve uma linha
+        for wid_raw in sel_list or []:
+            try:
+                wid = int(wid_raw)
+            except Exception:
+                continue
+            wname = id2name.get(wid, f"ID {wid}")
+            sid = wid_to_slot.get(wid)
+            hora = slot_hour.get(sid, "")
+            rows.append((wname, hora, a["full_name"], a["email"]))
+
+    # Ordena por Oficina, depois Horário, depois Nome
+    rows.sort(key=lambda r: (r[0].lower(), r[1], r[2].lower()))
+
+    # Gera CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Oficina", "Horário", "Nome", "E-mail"])
+    for r in rows:
+        writer.writerow(r)
+
+    mem = io.BytesIO(output.getvalue().encode("utf-8")); mem.seek(0)
+    resp = make_response(mem.read())
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+    resp.headers["Content-Disposition"] = "attachment; filename=nomes_linha_a_linha_por_oficina_horario.csv"
+    return resp
+
 # --- Resetar Base (agora inclui workshop_slots) ---
 @app.post("/admin/reset")
 @login_required
@@ -629,6 +690,7 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
