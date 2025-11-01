@@ -1,123 +1,163 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <title>Painel de Inscrições</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Administrativo</title>
   <style>
-    :root{
-      --brand:#004b6b; --btn:#0074a6; --btn-hover:#005c83;
-      --text:#222; --muted:#666; --border:#ddd; --bg:#fff; --thead:#f6f6f6;
-      --danger:#c62828; --danger-hover:#9f1f1f;
-      --ok-bg:#e0f8e0; --ok-bd:#9c9;
-      --err-bg:#ffe0e0; --err-bd:#f99;
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 2rem;
+      color: #222;
     }
-    *{box-sizing:border-box}
-    body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
-         max-width:1200px;margin:2rem auto;padding:0 1rem;background:var(--bg);color:var(--text)}
-    h1,h2{color:var(--brand);margin:.2rem 0 .8rem}
-    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap}
-    .btns-right{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:flex-end}
-    a.btn,button.btn{
-      display:inline-block;background:var(--btn);color:#fff;text-decoration:none;
-      padding:.6rem .9rem;border-radius:6px;border:none;cursor:pointer;font:inherit
+    h1 {
+      color: var(--brand);
+      margin: .2rem 0 .8rem;
+      font-size: 1.8rem;
     }
-    a.btn:hover,button.btn:hover{background:var(--btn-hover)}
-    .btn-danger{background:var(--danger)}
-    .btn-danger:hover{background:var(--danger-hover)}
-    .flash{padding:.7rem .9rem;border-radius:6px;margin:.6rem 0}
-    .flash.message{background:var(--ok-bg);border:1px solid var(--ok-bd)}
-    .flash.error{background:var(--err-bg);border:1px solid var(--err-bd)}
-    table{width:100%;border-collapse:collapse;margin:1rem 0 2rem;background:#fff}
-    th,td{border:1px solid var(--border);padding:.55rem .6rem;vertical-align:top;text-align:left}
-    th{background:var(--thead);font-weight:600}
-    .nowrap{white-space:nowrap}
-    .muted{color:var(--muted)}
-    form.inline{display:inline}
+    .top {
+      display:flex;
+      gap:.6rem;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:1rem;
+    }
+    .btn {
+      background: #003366;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .btn:hover {
+      background: #00509e;
+    }
+    .btn[style*="#b00020"] {
+      background: #b00020;
+    }
+    .btn[style*="#b00020"]:hover {
+      background: #d32f2f;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 2rem;
+      background: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.6rem;
+      text-align: left;
+    }
+    th {
+      background: #003366;
+      color: white;
+    }
+    tr:nth-child(even) td {
+      background: #f9f9f9;
+    }
+    .msg {
+      margin-bottom: 1rem;
+      padding: .5rem;
+      border-radius: 4px;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .message {
+      background: #d4edda;
+      color: #155724;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
+  <div class="top">
     <h1>Painel de Inscrições</h1>
-    <div class="btns-right">
-      <a class="btn" href="{{ url_for('reports') }}">Relatórios</a>
-      <a class="btn" href="{{ url_for('export_names_rows_by_workshop_slot_csv') }}">
-        Exportar (Oficina | Horário | Nome | E-mail)
-      </a>
-      <form class="inline" method="post" action="{{ url_for('admin_reset') }}"
-            onsubmit="return confirm('Tem certeza que deseja ZERAR TODA a base? Esta ação não pode ser desfeita.');">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-danger">Zerar Base</button>
-      </form>
-      <a class="btn" href="{{ url_for('logout') }}">Sair</a>
-    </div>
+    <div class="spacer"></div>
+    <a class="btn" href="{{ url_for('reports') }}">Relatórios</a>
+
+    <!-- Botão Resetar Base -->
+    <form method="post" action="{{ url_for('admin_reset') }}" style="display:inline;"
+          onsubmit="return confirm('⚠️ Isso vai apagar TODAS as inscrições e zerar os contadores. Tem certeza?');">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn" style="background:#b00020;">Resetar Base</button>
+    </form>
+
+    <a class="btn" href="{{ url_for('logout') }}">Sair</a>
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for cat, msg in messages %}
-        <div class="flash {{ cat }}">{{ msg }}</div>
+        <div class="msg {{ cat }}">{{ msg }}</div>
       {% endfor %}
     {% endif %}
   {% endwith %}
 
-  <h2>Capacidades & Totais</h2>
+  <h2>Oficinas</h2>
   <table>
     <thead>
       <tr>
-        <th>Oficina</th>
-        <th class="nowrap">Capacidade total</th>
-        <th class="nowrap">Inscritos (total)</th>
-        <th class="nowrap">Vagas restantes</th>
+        <th>ID</th>
+        <th>Nome da Oficina</th>
+        <th>Capacidade (total)</th>
+        <th>Inscritos (total)</th>
+        <th>Vagas Restantes</th>
       </tr>
     </thead>
     <tbody>
       {% for w in workshops %}
         <tr>
+          <td>{{ w.id }}</td>
           <td>{{ w.name }}</td>
-          <td class="nowrap">{{ w.capacity_total }}</td>
-          <td class="nowrap">{{ w.registered_total }}</td>
-          <td class="nowrap">{{ w.remaining_total }}</td>
+          <td>{{ w.capacity_total }}</td>
+          <td>{{ w.registered_total }}</td>
+          <td>{{ w.remaining_total }}</td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h2>Inscritos <span class="muted">(Horário GMT-3)</span></h2>
+  <h2>Inscritos</h2>
   <table>
     <thead>
       <tr>
         <th>Nome</th>
-        <th class="nowrap">E-mail</th>
+        <th>E-mail</th>
         <th>Escolhas (IDs)</th>
-        <th class="nowrap">Data/Hora</th>
-        <th class="nowrap">Ações</th>
+        <th>Data (GMT-3)</th>
+        <th>Ações</th>
       </tr>
     </thead>
     <tbody>
-      {% if attendees and attendees|length > 0 %}
-        {% for a in attendees %}
-          <tr>
-            <td>{{ a.full_name }}</td>
-            <td class="nowrap">{{ a.email }}</td>
-            <td>
-              {% if a.selections and a.selections|length > 0 %}
-                {{ a.selections|join(', ') }}
-              {% else %}
-                <em class="muted">—</em>
-              {% endif %}
-            </td>
-            <td class="nowrap">{{ a.created_at_local }}</td>
-            <td class="nowrap">
-              <form class="inline" method="post" action="{{ url_for('delete_attendee', att_id=a.id) }}"
-                    onsubmit="return confirm('Excluir a inscrição de {{ a.full_name }}?');">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-danger">Excluir</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      {% else %}
+      {% for a in attendees %}
         <tr>
-          <td colspan="5"><em class="muted">Nenhuma inscrição até o momento.</em></td>
-        </t
+          <td>{{ a.full_name }}</td>
+          <td>{{ a.email }}</td>
+          <td>
+            {% if a.selections and a.selections|length > 0 %}
+              {{ a.selections|join(", ") }}
+            {% else %}
+              <em>—</em>
+            {% endif %}
+          </td>
+          <td>{{ a.created_at_local }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_attendee', att_id=a.id) }}" onsubmit="return confirm('Excluir esta inscrição?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn" style="background:#c62828;">Excluir</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
