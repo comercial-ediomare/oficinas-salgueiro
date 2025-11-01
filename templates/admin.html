@@ -106,8 +106,8 @@
       <tr>
         <th>ID</th>
         <th>Nome da Oficina</th>
-        <th>Capacidade</th>
-        <th>Inscritos</th>
+        <th>Capacidade (total)</th>
+        <th>Inscritos (total)</th>
         <th>Vagas Restantes</th>
       </tr>
     </thead>
@@ -116,9 +116,9 @@
         <tr>
           <td>{{ w.id }}</td>
           <td>{{ w.name }}</td>
-          <td>{{ w.capacity }}</td>
-          <td>{{ w.registered }}</td>
-          <td>{{ w.remaining }}</td>
+          <td>{{ w.capacity_total }}</td>
+          <td>{{ w.registered_total }}</td>
+          <td>{{ w.remaining_total }}</td>
         </tr>
       {% endfor %}
     </tbody>
@@ -151,4 +151,5 @@
   </table>
 </body>
 </html>
+
 
