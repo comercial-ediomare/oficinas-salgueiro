@@ -103,12 +103,12 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 30, 0)
+                    (n, 40, 0)
                 )
-        # Garantir capacidade 30 (migração)
-        cur.execute("UPDATE workshops SET capacity = 30 WHERE capacity <> 30")
+        # Garantir capacidade 40 (migração)
+        cur.execute("UPDATE workshops SET capacity = 40 WHERE capacity <> 40")
 
-        # Seed workshop_slots: 30 por (oficina, horário) válido (pula bloqueadas)
+        # Seed workshop_slots: 40 por (oficina, horário) válido (pula bloqueadas)
         # Mapeia id->name
         ws = cur.execute("SELECT id, name FROM workshops").fetchall()
         id_to_name = {w["id"]: w["name"] for w in ws}
@@ -122,10 +122,10 @@ def init_db():
                 if key not in existing:
                     cur.execute(
                         "INSERT INTO workshop_slots(workshop_id, slot_id, capacity, registered) VALUES (?, ?, ?, ?)",
-                        (wid, sid, 30, 0)
+                        (wid, sid, 40, 0)
                     )
-        # Migração: garantir capacity=30 em todas as linhas
-        cur.execute("UPDATE workshop_slots SET capacity = 30 WHERE capacity <> 30")
+        # Migração: garantir capacity=40 em todas as linhas
+        cur.execute("UPDATE workshop_slots SET capacity = 40 WHERE capacity <> 40")
 
         conn.commit()
 
@@ -542,3 +542,4 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
