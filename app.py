@@ -289,14 +289,19 @@ def logout():
 def admin():
     with closing(get_db()) as conn:
         # 1) Capacidade total por oficina (somando todos os horários válidos)
-        caps = conn.execute("""
-            SELECT w.id AS wid,
-                   w.name AS name,
-                   COALESCE(SUM(ws.capacity), 0)  AS cap_total
+        cap_rows = conn.execute("""
+            SELECT w.id AS wid, w.name AS name,
+                   COALESCE(SUM(ws.capacity),0) AS cap_total
             FROM workshops w
             LEFT JOIN workshop_slots ws ON ws.workshop_id = w.id
             GROUP BY w.id, w.name
             ORDER BY w.id
+        """).fetchall()
+
+        at_rows = conn.execute("""
+            SELECT id, full_name, email, selections, selections_map, created_at
+            FROM attendees
+            ORDER BY created_at DESC
         """).fetchall()
 
         # 2) Recontar inscritos por oficina a partir de ATTENDEES (fonte de verdade)
@@ -360,18 +365,18 @@ def admin():
         except Exception:
             sels = []
         parsed_attendees.append({
+            "id": a["id"],                         # <<--- necessário para o botão
             "full_name": a["full_name"],
             "email": a["email"],
             "selections": sels,
-            "created_at": a["created_at"],       # original (UTC ISO)
-            "created_at_local": created_local,   # exibida no admin
+            "created_at": a["created_at"],
+            "created_at_local": created_local,
         })
-                
-    return render_template(
-        "admin.html",
-        workshops=workshops_view,
-        attendees=parsed_attendees,
-        csrf_token=_get_csrf_token()
+
+    return render_template("admin.html",
+                           workshops=workshops_view,
+                           attendees=parsed_attendees,
+                           csrf_token=_get_csrf_token())
     )
 
 # --- Exports básicos ---
@@ -687,9 +692,87 @@ def admin_reset():
     flash("Base resetada com sucesso: inscrições removidas e contadores zerados (por horário e geral).", "message")
     return redirect(url_for("admin"))
 
+@app.post("/admin/attendee/<int:att_id>/delete")
+@login_required
+def delete_attendee(att_id):
+    form_tok = request.form.get("_csrf_token") or ""
+    if not form_tok or form_tok != session.get("_csrf_token"):
+        flash("Falha de validação (CSRF). Recarregue a página e tente novamente.", "error")
+        return redirect(url_for("admin"))
+
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cur = conn.cursor()
+
+        row = cur.execute("""
+            SELECT id, selections, selections_map
+            FROM attendees
+            WHERE id = ?
+        """, (att_id,)).fetchone()
+
+        if not row:
+            conn.execute("ROLLBACK")
+            flash("Inscrição não encontrada.", "error")
+            return redirect(url_for("admin"))
+
+        # Parse das escolhas
+        try:
+            sel_list = json.loads(row["selections"]) if row["selections"] else []
+        except Exception:
+            sel_list = []
+        try:
+            sel_map = json.loads(row["selections_map"]) if row["selections_map"] else {}
+        except Exception:
+            sel_map = {}
+
+        # Devolve vagas por (workshop_id, slot_id)
+        # selections_map é {slot_id: workshop_id}
+        if isinstance(sel_map, dict):
+            for sid_raw, wid_raw in sel_map.items():
+                try:
+                    sid = int(sid_raw); wid = int(wid_raw)
+                except Exception:
+                    continue
+                # Evita negativo
+                cur.execute("""
+                    UPDATE workshop_slots
+                       SET registered = CASE WHEN registered > 0 THEN registered - 1 ELSE 0 END
+                     WHERE workshop_id = ? AND slot_id = ?
+                """, (wid, sid))
+
+        # Mantém 'workshops.registered' alinhado (não usado no painel, mas mantemos consistência)
+        # Decrementa 1 por oficina escolhida (uma vez por oficina)
+        if isinstance(sel_list, list):
+            for wid_raw in set(sel_list):
+                try:
+                    wid = int(wid_raw)
+                except Exception:
+                    continue
+                cur.execute("""
+                    UPDATE workshops
+                       SET registered = CASE WHEN registered > 0 THEN registered - 1 ELSE 0 END
+                     WHERE id = ?
+                """, (wid,))
+
+        # Apaga o attendee
+        cur.execute("DELETE FROM attendees WHERE id = ?", (att_id,))
+
+        conn.execute("COMMIT")
+        flash("Inscrição excluída com sucesso.", "message")
+    except Exception:
+        try: conn.execute("ROLLBACK")
+        except Exception: pass
+        flash("Erro ao excluir a inscrição.", "error")
+    finally:
+        conn.close()
+
+    return redirect(url_for("admin"))
+
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
