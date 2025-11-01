@@ -67,6 +67,9 @@
       background: #d4edda;
       color: #155724;
     }
+    .muted {
+      color:#666; font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -93,6 +96,18 @@
     {% for slot in slots %}
       <section>
         <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
+
+        <!-- Opção: não escolher nesse horário -->
+        <label class="muted">
+          <input type="radio"
+                 name="slot_{{ slot.id }}"
+                 value=""
+                 class="slot-none"
+                 data-slot="{{ slot.id }}"
+                 checked>
+          Não escolher neste horário
+        </label>
+
         {% set bloqueadas = slot.bloqueadas %}
         {% for w in workshops %}
           {% set disabled = (w.name in bloqueadas) %}
@@ -102,7 +117,8 @@
                    value="{{ w.id }}"
                    {% if disabled %}disabled{% endif %}
                    class="oficina-radio"
-                   data-wid="{{ w.id }}">
+                   data-wid="{{ w.id }}"
+                   data-slot="{{ slot.id }}">
             {{ w.name }}
             {% if disabled %}
               <small>(indisponível neste horário)</small>
@@ -111,6 +127,10 @@
         {% endfor %}
       </section>
     {% endfor %}
+
+    <p class="muted" style="margin-top:.75rem;">
+      * Você pode escolher de 1 até 4 oficinas (no máximo uma por horário).
+    </p>
 
     <label style="margin-top:1rem;">
       <input type="checkbox" name="consent" required>
@@ -121,19 +141,65 @@
   </form>
 
   <script>
-    // Impedir escolher a mesma oficina em horários diferentes
-    const radios = document.querySelectorAll('.oficina-radio');
-    radios.forEach(r => {
-      r.addEventListener('change', () => {
-        const selectedId = r.dataset.wid;
-        // Desmarca qualquer outro com o mesmo value em horários diferentes
-        radios.forEach(other => {
-          if (other !== r && other.dataset.wid === selectedId) {
-            other.checked = false;
-          }
-        });
+    // Regras:
+    // 1) Uma oficina não pode ser escolhida em dois horários diferentes.
+    // 2) Há opção "Não escolher neste horário" por slot.
+    // 3) Ao escolher uma oficina em um slot, as mesmas oficinas ficam desabilitadas nos outros slots.
+    // 4) Se você desmarca (seleciona "não escolher"), reabilita nos outros slots.
+
+    const radios = Array.from(document.querySelectorAll('.oficina-radio'));
+    const noneRadios = Array.from(document.querySelectorAll('.slot-none'));
+
+    function getSelections() {
+      // Retorna { slotId: wid || "" }
+      const selections = {};
+      // Coleta por name=slot_X
+      const slotNames = new Set(
+        Array.from(document.querySelectorAll('input[type="radio"]'))
+          .map(i => i.name)
+          .filter(n => n.startsWith('slot_'))
+      );
+      slotNames.forEach(name => {
+        const checked = document.querySelector(`input[name="${name}"]:checked`);
+        if (checked) {
+          selections[name.replace('slot_', '')] = checked.value; // "" ou wid
+        }
       });
-    });
+      return selections;
+    }
+
+    function updateDisabled() {
+      const selections = getSelections(); // { "1": "3", "2": "", "3": "5", ... }
+      // Conjunto com os WIDs escolhidos (excluindo vazios e inválidos)
+      const chosenWids = new Set(
+        Object.values(selections).filter(v => v && /^\d+$/.test(v))
+      );
+
+      // Para cada radio de oficina:
+      radios.forEach(r => {
+        const wid = r.dataset.wid;         // id da oficina desse radio
+        const slot = r.dataset.slot;       // slot atual (string)
+        const current = selections[slot];  // o que está selecionado nesse slot
+
+        // Regra: desabilita se a mesma oficina está escolhida em OUTRO slot
+        // (mas não desabilita o que já está marcado no próprio slot)
+        const isChosenElsewhere = chosenWids.has(wid) && current !== wid;
+
+        // Mantém desabilitado se já estava desabilitado por "bloqueadas"
+        const originallyDisabled = r.hasAttribute('disabled');
+
+        if (!originallyDisabled) {
+          r.disabled = isChosenElsewhere;
+        }
+      });
+    }
+
+    // Listeners de mudança
+    radios.forEach(r => r.addEventListener('change', updateDisabled));
+    noneRadios.forEach(r => r.addEventListener('change', updateDisabled));
+
+    // Inicializa regras ao carregar
+    updateDisabled();
   </script>
 </body>
 </html>
