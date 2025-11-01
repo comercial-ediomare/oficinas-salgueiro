@@ -363,6 +363,72 @@ def export_by_slot_csv():
     resp.headers["Content-Disposition"] = "attachment; filename=relatorio_por_horario.csv"
     return resp
 
+@app.route("/export_names_by_workshop.csv")
+@login_required
+def export_names_by_workshop_csv():
+    """
+    Exporta um CSV com as colunas:
+    workshop_id, workshop_name, full_name, email, slot_id, hora
+    (uma linha por pessoa inscrita em cada oficina)
+    """
+    # Carrega mapas
+    with closing(get_db()) as conn:
+        ws = conn.execute("SELECT id, name FROM workshops ORDER BY id").fetchall()
+        attendees = conn.execute(
+            "SELECT full_name, email, selections, selections_map FROM attendees ORDER BY full_name"
+        ).fetchall()
+
+    id2name = {int(r["id"]): r["name"] for r in ws}
+    # slot_id -> hora (para preencher a coluna 'hora')
+    slot_hour = {s["id"]: s["hora"] for s in SLOTS}
+
+    # Monta CSV em memória
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["workshop_id", "workshop_name", "full_name", "email", "slot_id", "hora"])
+
+    for a in attendees:
+        # lista de oficinas (IDs) escolhidas por essa pessoa
+        try:
+            sel_list = json.loads(a["selections"]) if a["selections"] else []
+        except Exception:
+            sel_list = []
+
+        # mapa slot->workshop para achar em qual horário a pessoa selecionou cada oficina
+        try:
+            sel_map = json.loads(a["selections_map"]) if a["selections_map"] else {}
+        except Exception:
+            sel_map = {}
+
+        # Inverter o mapa para workshop->slot (facilita achar o horário)
+        wid_to_slot = {}
+        if isinstance(sel_map, dict):
+            for sid_raw, wid_raw in sel_map.items():
+                try:
+                    sid_i = int(sid_raw)
+                    wid_i = int(wid_raw)
+                    wid_to_slot[wid_i] = sid_i
+                except Exception:
+                    pass
+
+        # Uma linha por (oficina, pessoa)
+        for wid_raw in sel_list or []:
+            try:
+                wid = int(wid_raw)
+            except Exception:
+                continue
+            wname = id2name.get(wid, f"ID {wid}")
+            sid = wid_to_slot.get(wid)  # pode ser None em inscrições antigas
+            hora = slot_hour.get(sid, "")
+            writer.writerow([wid, wname, a["full_name"], a["email"], sid or "", hora])
+
+    mem = io.BytesIO(output.getvalue().encode("utf-8"))
+    mem.seek(0)
+    resp = make_response(mem.read())
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+    resp.headers["Content-Disposition"] = "attachment; filename=nomes_por_oficina.csv"
+    return resp
+
 # --- Resetar Base (apagar inscrições e zerar contadores) ---
 @app.post("/admin/reset")
 @login_required
@@ -384,3 +450,4 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
