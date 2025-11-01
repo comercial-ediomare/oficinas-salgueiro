@@ -1,83 +1,139 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <title>Painel de Inscrições</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inscrição nas Oficinas</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 1080px; margin: 2rem auto; padding: 0 1rem; color:#222; }
-    h1 { color:#004b6b; margin-bottom:.25rem; }
-    .top { display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
-    a.btn { display:inline-block; background:#0074a6; color:#fff; text-decoration:none; padding:.6rem .9rem; border-radius:6px; }
-    a.btn:hover { background:#005c83; }
-    table { width:100%; border-collapse:collapse; margin:1rem 0 2rem; }
-    th, td { border:1px solid #ddd; padding:.55rem .6rem; vertical-align:top; }
-    th { background:#f6f6f6; text-align:left; }
-    small.muted { color:#666; }
-    ul { margin:.3rem 0 .6rem 1.2rem; }
-    code { background:#f3f3f3; padding:.05rem .3rem; border-radius:4px; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #f8f9fa;
+    }
+    h1 {
+      color: #222;
+      text-align: center;
+    }
+    form {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.1);
+    }
+    section {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+    section h3 {
+      margin-top: 0;
+      color: #003366;
+    }
+    label {
+      display: block;
+      margin: .3rem 0;
+      cursor: pointer;
+    }
+    small {
+      color: #a00;
+    }
+    .btn {
+      background: #003366;
+      color: #fff;
+      padding: .75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-top: 1rem;
+    }
+    .btn:hover {
+      background: #00509e;
+    }
+    .msg {
+      margin-bottom: 1rem;
+      padding: .5rem;
+      border-radius: 4px;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .message {
+      background: #d4edda;
+      color: #155724;
+    }
   </style>
 </head>
 <body>
-  <div class="top">
-    <h1>Painel de Inscrições</h1>
-    <a class="btn" href="{{ url_for('export_csv') }}">Exportar CSV</a>
-    <a class="btn" href="{{ url_for('logout') }}">Sair</a>
-  </div>
+  <h1>Inscrição nas Oficinas</h1>
 
-  <h2>Oficinas</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th><th>Nome</th><th>Capacidade</th><th>Inscritos</th><th>Restantes</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for w in workshops %}
-        <tr>
-          <td>{{ w['id'] }}</td>
-          <td>{{ w['name'] }}</td>
-          <td>{{ w['capacity'] }}</td>
-          <td>{{ w['registered'] }}</td>
-          <td>{{ w['remaining'] }}</td>
-        </tr>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+        <div class="msg {{ cat }}">{{ msg }}</div>
       {% endfor %}
-    </tbody>
-  </table>
+    {% endif %}
+  {% endwith %}
 
-  {% macro name_for_id(wid, ws) -%}
-    {%- for w in ws -%}
-      {%- if w['id'] == wid -%}{{ w['name'] }}{%- endif -%}
-    {%- endfor -%}
-  {%- endmacro %}
+  <form method="post" action="{{ url_for('inscrever') }}">
+    <label>Nome completo:
+      <input type="text" name="full_name" required style="width:100%; padding:.5rem; margin-top:.25rem;">
+    </label>
 
-  <h2>Inscritos</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Nome</th><th>E-mail</th><th>Oficinas selecionadas</th><th>Criado em (UTC)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for a in attendees %}
-        <tr>
-          <td>{{ a.full_name }}</td>
-          <td>{{ a.email }}</td>
-          <td>
-            {% if a.selections and a.selections|length > 0 %}
-              <ul>
-                {% for wid in a.selections %}
-                  <li>{{ name_for_id(wid, workshops) }} <small class="muted">(id {{ wid }})</small></li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <small class="muted">—</small>
+    <label>E-mail:
+      <input type="email" name="email" required style="width:100%; padding:.5rem; margin-top:.25rem;">
+    </label>
+
+    <!-- HORÁRIOS -->
+    {% for slot in slots %}
+      <section>
+        <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
+        {% set bloqueadas = slot.bloqueadas %}
+        {% for w in workshops %}
+          {% set disabled = (w.name in bloqueadas) %}
+          <label>
+            <input type="radio"
+                   name="slot_{{ slot.id }}"
+                   value="{{ w.id }}"
+                   {% if disabled %}disabled{% endif %}
+                   class="oficina-radio"
+                   data-wid="{{ w.id }}">
+            {{ w.name }}
+            {% if disabled %}
+              <small>(indisponível neste horário)</small>
             {% endif %}
-          </td>
-          <td><code>{{ a.created_at }}</code></td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          </label>
+        {% endfor %}
+      </section>
+    {% endfor %}
+
+    <label style="margin-top:1rem;">
+      <input type="checkbox" name="consent" required>
+      Concordo com o tratamento dos meus dados conforme a LGPD.
+    </label>
+
+    <button type="submit" class="btn">Enviar Inscrição</button>
+  </form>
+
+  <script>
+    // Impedir escolher a mesma oficina em horários diferentes
+    const radios = document.querySelectorAll('.oficina-radio');
+    radios.forEach(r => {
+      r.addEventListener('change', () => {
+        const selectedId = r.dataset.wid;
+        // Desmarca qualquer outro com o mesmo value em horários diferentes
+        radios.forEach(other => {
+          if (other !== r && other.dataset.wid === selectedId) {
+            other.checked = false;
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>
