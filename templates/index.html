@@ -1,25 +1,72 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inscrição nas Oficinas</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 2rem auto; max-width: 860px; color: #222; padding: 0 1rem; }
-    h1 { text-align: center; margin-bottom: 1rem; color: #004b6b; }
-    form { margin-top: 1rem; }
-    fieldset.slot { margin: 1.25em 0; padding: 1em; border: 2px solid #ccc; border-radius: 10px; }
-    legend { font-weight: bold; color: #333; }
-    label { display: block; margin-bottom: .45em; }
-    label.bloqueada { color: #888; }
-    label.bloqueada small { color: #aaa; }
-    .flash { padding: 1em; border-radius: 6px; margin-bottom: 1em; }
-    .flash.error { background: #ffe0e0; color: #a00; border: 1px solid #f99; }
-    .flash.message { background: #e0f8e0; color: #060; border: 1px solid #9c9; }
-    input[type="text"], input[type="email"] { width: 100%; padding: .6em; border: 1px solid #bbb; border-radius: 6px; margin-top: .25em; }
-    button { background: #0074a6; color: #fff; border: none; padding: .75em 1.5em; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
-    button:hover { background: #005c83; }
-    small.muted { color: #666; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #f8f9fa;
+    }
+    h1 {
+      color: #222;
+      text-align: center;
+    }
+    form {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.1);
+    }
+    section {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+    section h3 {
+      margin-top: 0;
+      color: #003366;
+    }
+    label {
+      display: block;
+      margin: .3rem 0;
+      cursor: pointer;
+    }
+    small {
+      color: #a00;
+    }
+    .btn {
+      background: #003366;
+      color: #fff;
+      padding: .75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-top: 1rem;
+    }
+    .btn:hover {
+      background: #00509e;
+    }
+    .msg {
+      margin-bottom: 1rem;
+      padding: .5rem;
+      border-radius: 4px;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .message {
+      background: #d4edda;
+      color: #155724;
+    }
   </style>
 </head>
 <body>
@@ -28,110 +75,65 @@
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for cat, msg in messages %}
-        <div class="flash {{ cat }}">{{ msg }}</div>
+        <div class="msg {{ cat }}">{{ msg }}</div>
       {% endfor %}
     {% endif %}
   {% endwith %}
 
   <form method="post" action="{{ url_for('inscrever') }}">
     <label>Nome completo:
-      <input type="text" name="full_name" required>
+      <input type="text" name="full_name" required style="width:100%; padding:.5rem; margin-top:.25rem;">
     </label>
 
-    <label style="margin-top:.6em;">E-mail:
-      <input type="email" name="email" required>
+    <label>E-mail:
+      <input type="email" name="email" required style="width:100%; padding:.5rem; margin-top:.25rem;">
     </label>
 
-    <p><strong>Escolha de 1 a 4 oficinas (máximo 1 por horário e sem repetir):</strong></p>
-
+    <!-- HORÁRIOS -->
     {% for slot in slots %}
-      <fieldset class="slot">
-        <legend>{{ loop.index }}º Horário — {{ slot.hora }}</legend>
-        <div class="oficinas">
-          {% for w in workshops %}
-            {% if w["name"] not in slot.bloqueadas %}
-              <label>
-                <input type="radio"
-                       class="opt"
-                       name="slot_{{ slot.id }}"
-                       value="{{ w['id'] }}"
-                       data-workshop-id="{{ w['id'] }}"
-                       data-slot-id="{{ slot.id }}"
-                       onchange="updateSlots()">
-                {{ w["name"] }}
-                <small class="muted">({{ w["registered"] }}/{{ w["capacity"] }} vagas ocupadas)</small>
-              </label>
-            {% else %}
-              <label class="bloqueada">
-                <input type="radio" disabled>
-                {{ w["name"] }} <small class="muted">(não disponível neste horário)</small>
-              </label>
-            {% endif %}
-          {% endfor %}
-          <!-- opção de não escolher nada neste horário -->
+      <section>
+        <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
+        {% set bloqueadas = slot.bloqueadas %}
+        {% for w in workshops %}
+          {% set disabled = (w.name in bloqueadas) %}
           <label>
             <input type="radio"
-                   class="opt"
                    name="slot_{{ slot.id }}"
-                   value=""
-                   data-slot-id="{{ slot.id }}"
-                   onchange="updateSlots()">
-            NÃO ESCOLHER NESTE HORÁRIO
+                   value="{{ w.id }}"
+                   {% if disabled %}disabled{% endif %}
+                   class="oficina-radio"
+                   data-wid="{{ w.id }}">
+            {{ w.name }}
+            {% if disabled %}
+              <small>(indisponível neste horário)</small>
+            {% endif %}
           </label>
-        </div>
-      </fieldset>
+        {% endfor %}
+      </section>
     {% endfor %}
 
-    <p>
-      <label>
-        <input type="checkbox" name="consent" required>
-        Autorizo o uso dos meus dados para organização das oficinas.
-      </label>
-    </p>
+    <label style="margin-top:1rem;">
+      <input type="checkbox" name="consent" required>
+      Concordo com o tratamento dos meus dados conforme a LGPD.
+    </label>
 
-    <button type="submit" id="submitBtn" disabled>Enviar inscrição</button>
+    <button type="submit" class="btn">Enviar Inscrição</button>
   </form>
 
   <script>
-    function updateSlots() {
-      // Agrupa radios por oficina (mesmo ID em slots diferentes)
-      const radios = Array.from(document.querySelectorAll('input[type="radio"].opt'));
-      const byWorkshop = new Map(); // id -> [radios]
-      radios.forEach(r => {
-        const wid = r.dataset.workshopId;
-        if (!wid) return; // ignora "Não escolher neste horário"
-        if (!byWorkshop.has(wid)) byWorkshop.set(wid, []);
-        byWorkshop.get(wid).push(r);
-      });
-
-      // Primeiro, reabilita tudo que não está bloqueado por horário (não tocamos nos desabilitados do HTML)
-      byWorkshop.forEach(list => {
-        list.forEach(r => {
-          // só reabilita se não estiver desabilitado pelo HTML (bloqueio por horário):
-          // nosso seletor 'opt' só pega os habilitáveis, então ok reabilitar
-          r.disabled = false;
+    // Impedir escolher a mesma oficina em horários diferentes
+    const radios = document.querySelectorAll('.oficina-radio');
+    radios.forEach(r => {
+      r.addEventListener('change', () => {
+        const selectedId = r.dataset.wid;
+        // Desmarca qualquer outro com o mesmo value em horários diferentes
+        radios.forEach(other => {
+          if (other !== r && other.dataset.wid === selectedId) {
+            other.checked = false;
+          }
         });
       });
-
-      // Para cada oficina: se ela foi escolhida em algum slot, desabilita as opções dessa mesma oficina nos outros slots
-      byWorkshop.forEach(list => {
-        const checked = list.find(r => r.checked && r.value);
-        if (checked) {
-          list.forEach(r => {
-            if (r !== checked) r.disabled = true;
-          });
-        }
-      });
-
-      // Habilita o submit se nº de escolhas (com valor) ∈ [1,4]
-      const chosenCount = Array.from(document.querySelectorAll('input[type="radio"][name^="slot_"]:checked'))
-                               .filter(r => r.value).length;
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = !(chosenCount >= 1 && chosenCount <= 4);
-    }
-
-    document.addEventListener('DOMContentLoaded', updateSlots);
+    });
   </script>
 </body>
 </html>
-
