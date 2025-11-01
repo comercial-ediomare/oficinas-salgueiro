@@ -144,12 +144,13 @@
               {{ sel }}{% if not loop.last %}, {% endif %}
             {% endfor %}
           </td>
-          <td>{{ a.created_at }}</td>
+          <td>{{ a.created_at_local }}</td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 </body>
 </html>
+
 
 
