@@ -3,56 +3,63 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inscrição nas Oficinas</title>
+  <title>Painel Administrativo</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 900px;
-      margin: 2rem auto;
-      padding: 1rem;
       background: #f8f9fa;
+      margin: 0;
+      padding: 2rem;
+      color: #222;
     }
     h1 {
-      color: #222;
-      text-align: center;
-    }
-    form {
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,.1);
-    }
-    section {
-      margin-top: 1.5rem;
-      padding: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: #fafafa;
-    }
-    section h3 {
-      margin-top: 0;
       color: #003366;
+      margin-bottom: 1rem;
     }
-    label {
-      display: block;
-      margin: .3rem 0;
-      cursor: pointer;
-    }
-    small {
-      color: #a00;
+    .top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
     }
     .btn {
       background: #003366;
-      color: #fff;
-      padding: .75rem 1.5rem;
+      color: white;
       border: none;
+      padding: 0.5rem 1rem;
       border-radius: 4px;
+      text-decoration: none;
       cursor: pointer;
-      font-size: 1rem;
-      margin-top: 1rem;
+      font-size: 0.95rem;
     }
     .btn:hover {
       background: #00509e;
+    }
+    .btn[style*="#b00020"] {
+      background: #b00020;
+    }
+    .btn[style*="#b00020"]:hover {
+      background: #d32f2f;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 2rem;
+      background: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.6rem;
+      text-align: left;
+    }
+    th {
+      background: #003366;
+      color: white;
+    }
+    tr:nth-child(even) td {
+      background: #f9f9f9;
     }
     .msg {
       margin-bottom: 1rem;
@@ -70,7 +77,21 @@
   </style>
 </head>
 <body>
-  <h1>Inscrição nas Oficinas</h1>
+  <div class="top">
+    <h1>Painel de Inscrições</h1>
+
+    <a class="btn" href="{{ url_for('export_csv') }}">Exportar CSV</a>
+    <a class="btn" href="{{ url_for('reports') }}">Relatórios</a>
+
+    <!-- Botão Resetar Base -->
+    <form method="post" action="{{ url_for('admin_reset') }}" style="display:inline;"
+          onsubmit="return confirm('⚠️ Isso vai apagar TODAS as inscrições e zerar os contadores. Tem certeza?');">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn" style="background:#b00020;">Resetar Base</button>
+    </form>
+
+    <a class="btn" href="{{ url_for('logout') }}">Sair</a>
+  </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -80,60 +101,54 @@
     {% endif %}
   {% endwith %}
 
-  <form method="post" action="{{ url_for('inscrever') }}">
-    <label>Nome completo:
-      <input type="text" name="full_name" required style="width:100%; padding:.5rem; margin-top:.25rem;">
-    </label>
+  <h2>Oficinas</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nome da Oficina</th>
+        <th>Capacidade</th>
+        <th>Inscritos</th>
+        <th>Vagas Restantes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in workshops %}
+        <tr>
+          <td>{{ w.id }}</td>
+          <td>{{ w.name }}</td>
+          <td>{{ w.capacity }}</td>
+          <td>{{ w.registered }}</td>
+          <td>{{ w.remaining }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-    <label>E-mail:
-      <input type="email" name="email" required style="width:100%; padding:.5rem; margin-top:.25rem;">
-    </label>
-
-    <!-- HORÁRIOS -->
-    {% for slot in slots %}
-      <section>
-        <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
-        {% set bloqueadas = slot.bloqueadas %}
-        {% for w in workshops %}
-          {% set disabled = (w.name in bloqueadas) %}
-          <label>
-            <input type="radio"
-                   name="slot_{{ slot.id }}"
-                   value="{{ w.id }}"
-                   {% if disabled %}disabled{% endif %}
-                   class="oficina-radio"
-                   data-wid="{{ w.id }}">
-            {{ w.name }}
-            {% if disabled %}
-              <small>(indisponível neste horário)</small>
-            {% endif %}
-          </label>
-        {% endfor %}
-      </section>
-    {% endfor %}
-
-    <label style="margin-top:1rem;">
-      <input type="checkbox" name="consent" required>
-      Concordo com o tratamento dos meus dados conforme a LGPD.
-    </label>
-
-    <button type="submit" class="btn">Enviar Inscrição</button>
-  </form>
-
-  <script>
-    // Impedir escolher a mesma oficina em horários diferentes
-    const radios = document.querySelectorAll('.oficina-radio');
-    radios.forEach(r => {
-      r.addEventListener('change', () => {
-        const selectedId = r.dataset.wid;
-        // Desmarca qualquer outro com o mesmo value em horários diferentes
-        radios.forEach(other => {
-          if (other !== r && other.dataset.wid === selectedId) {
-            other.checked = false;
-          }
-        });
-      });
-    });
-  </script>
+  <h2>Inscritos</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>E-mail</th>
+        <th>Oficinas Escolhidas</th>
+        <th>Data/Hora</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in attendees %}
+        <tr>
+          <td>{{ a.full_name }}</td>
+          <td>{{ a.email }}</td>
+          <td>
+            {% for sel in a.selections %}
+              {{ sel }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+          <td>{{ a.created_at }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </body>
 </html>
