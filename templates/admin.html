@@ -13,15 +13,16 @@
       color: #222;
     }
     h1 {
-      color: #003366;
-      margin-bottom: 1rem;
+      color: var(--brand);
+      margin: .2rem 0 .8rem;
+      font-size: 1.8rem;
     }
     .top {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      align-items: center;
-      margin-bottom: 1.5rem;
+      display:flex;
+      gap:.6rem;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:1rem;
     }
     .btn {
       background: #003366;
@@ -79,7 +80,7 @@
 <body>
   <div class="top">
     <h1>Painel de Inscrições</h1>
-
+    <div class="spacer"></div>
     <a class="btn" href="{{ url_for('reports') }}">Relatórios</a>
 
     <!-- Botão Resetar Base -->
@@ -151,6 +152,7 @@
   </table>
 </body>
 </html>
+
 
 
 
