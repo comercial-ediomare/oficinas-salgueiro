@@ -359,17 +359,6 @@ def admin():
             "selections": sels,
             "created_at": a["created_at"],
         })
-
-    from datetime import datetime, timedelta
-
-    # Ajustar fuso horário UTC → GMT-3 (horário de Brasília)
-        for a in parsed_attendees:
-            try:
-                dt = datetime.fromisoformat(a["created_at"])
-                local_dt = dt - timedelta(hours=3)  # converte para GMT-3
-                a["created_at_local"] = local_dt.strftime("%d/%m/%Y %H:%M")
-            except Exception:
-                a["created_at_local"] = a["created_at"]
                 
     return render_template(
         "admin.html",
@@ -615,6 +604,7 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
