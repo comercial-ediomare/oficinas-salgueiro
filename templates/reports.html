@@ -5,7 +5,6 @@
   <title>Relatórios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    /* === Estilo alinhado ao admin.html === */
     :root {
       --brand:#004b6b;
       --btn:#0074a6;
@@ -15,10 +14,6 @@
       --border:#ddd;
       --bg:#fff;
       --table-head:#f6f6f6;
-      --flash-ok:#e0f8e0;
-      --flash-ok-border:#9c9;
-      --flash-err:#ffe0e0;
-      --flash-err-border:#f99;
     }
     * { box-sizing: border-box; }
     body {
@@ -29,14 +24,8 @@
       color: var(--text);
       background: var(--bg);
     }
-    h1, h2, h3 { color: var(--brand); margin: .2rem 0 .8rem; }
-    h1 { font-size: 1.8rem; }
-    h2 { font-size: 1.25rem; }
-    h3 { font-size: 1.05rem; color:#2b5d72; }
-
-    .top {
-      display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;
-    }
+    h1 { color: var(--brand); margin: .2rem 0 .8rem; font-size: 1.8rem; }
+    .top { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
     .spacer { flex:1; }
 
     a.btn, button.btn {
@@ -47,8 +36,6 @@
       font: inherit;
     }
     a.btn:hover, button.btn:hover { background: var(--btn-hover); }
-
-    .muted { color: var(--muted); }
 
     table {
       width:100%;
@@ -65,22 +52,7 @@
     }
     th { background: var(--table-head); font-weight:600; }
     .nowrap { white-space: nowrap; }
-
-    .cards {
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px,1fr));
-      gap: .8rem;
-      margin: .8rem 0 1.2rem;
-    }
-    .card {
-      border:1px solid var(--border);
-      border-radius:8px;
-      padding:.8rem;
-      background:#fff;
-    }
-    .card h3 { margin-top:0; }
-
-    .hint { color:var(--muted); font-size:.92rem; margin:.2rem 0 1rem; }
+    .muted { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -88,56 +60,36 @@
     <h1>Relatórios</h1>
     <div class="spacer"></div>
     <a class="btn" href="{{ url_for('admin') }}">Voltar</a>
-    <a class="btn" href="{{ url_for('export_by_workshop_csv') }}">Exportar por Oficina (CSV)</a>
-    <a class="btn" href="{{ url_for('export_by_slot_csv') }}">Exportar por Horário (CSV)</a>
-    <a class="btn" href="{{ url_for('export_names_by_workshop_csv') }}">Exportar Nomes por Oficina/Horário (CSV)</a>
     <a class="btn" href="{{ url_for('export_grouped_names_by_workshop_slot_csv') }}">Exportar Nomes Agrupados (CSV)</a>
   </div>
 
-  <p class="hint">Os números abaixo são recontados a partir das inscrições efetivadas (fonte: <code>attendees</code>).</p>
-
-  <!-- Resumo por Oficina (total geral) -->
-  <h2>Resumo por Oficina — Total Geral</h2>
   <table>
     <thead>
       <tr>
-        <th>Oficina</th>
-        <th class="nowrap">Inscritos (total)</th>
+        <th>Nome</th>
+        <th class="nowrap">E-mail</th>
+        {% for slot in slots %}
+          <th class="nowrap">{{ loop.index }}º Horário — {{ slot.hora }}</th>
+        {% endfor %}
       </tr>
     </thead>
     <tbody>
-      {% for wid, data in ws %}
+      {% if people and people|length > 0 %}
+        {% for p in people %}
+          <tr>
+            <td>{{ p.full_name }}</td>
+            <td class="nowrap">{{ p.email }}</td>
+            {% for slot in slots %}
+              <td>{{ p['slot_' ~ slot.id] }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      {% else %}
         <tr>
-          <td>{{ data.name }}</td>
-          <td class="nowrap">{{ data.count }}</td>
+          <td colspan="{{ 2 + slots|length }}"><em class="muted">Nenhuma inscrição encontrada.</em></td>
         </tr>
-      {% endfor %}
+      {% endif %}
     </tbody>
   </table>
-
-  <!-- Resumo por Horário -->
-  <h2>Resumo por Horário</h2>
-  {% for slot in slots %}
-    <div class="card">
-      <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Oficina</th>
-            <th class="nowrap">Inscritos neste horário</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for wid, data in slot.rows %}
-            <tr>
-              <td>{{ data.name }}</td>
-              <td class="nowrap">{{ data.count }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endfor %}
 </body>
 </html>
-
