@@ -288,22 +288,56 @@ def logout():
 @login_required
 def admin():
     with closing(get_db()) as conn:
-        ws = conn.execute("""
-            SELECT id,name,capacity,registered,(capacity-registered) AS remaining
-            FROM workshops ORDER BY id
+        # Totais por oficina com base na tabela por horário
+        rows = conn.execute("""
+            SELECT w.id,
+                   w.name,
+                   COALESCE(SUM(ws.capacity), 0)  AS cap_total,
+                   COALESCE(SUM(ws.registered), 0) AS reg_total
+            FROM workshops w
+            LEFT JOIN workshop_slots ws ON ws.workshop_id = w.id
+            GROUP BY w.id, w.name
+            ORDER BY w.id
         """).fetchall()
+
+        # Inscritos (lista)
         attendees = conn.execute("""
-            SELECT full_name,email,selections,created_at
-            FROM attendees ORDER BY created_at DESC
+            SELECT full_name, email, selections, created_at
+            FROM attendees
+            ORDER BY created_at DESC
         """).fetchall()
-    parsed = []
+
+    workshops_view = []
+    for r in rows:
+        remaining = int(r["cap_total"]) - int(r["reg_total"])
+        workshops_view.append({
+            "id": r["id"],
+            "name": r["name"],
+            "capacity_total": int(r["cap_total"]),
+            "registered_total": int(r["reg_total"]),
+            "remaining_total": max(0, remaining),
+        })
+
+    parsed_attendees = []
     for a in attendees:
         try:
             sels = json.loads(a["selections"]) or []
         except Exception:
             sels = []
-        parsed.append({"full_name": a["full_name"], "email": a["email"], "selections": sels, "created_at": a["created_at"]})
-    return render_template("admin.html", workshops=ws, attendees=parsed, csrf_token=_get_csrf_token())
+        parsed_attendees.append({
+            "full_name": a["full_name"],
+            "email": a["email"],
+            "selections": sels,
+            "created_at": a["created_at"],
+        })
+
+    return render_template(
+        "admin.html",
+        workshops=workshops_view,
+        attendees=parsed_attendees,
+        csrf_token=_get_csrf_token()
+    )
+
 
 # --- Exports básicos ---
 @app.route("/export.csv")
@@ -542,4 +576,5 @@ def admin_reset():
 # --- Execução local ---
 if __name__ == "__main__":
     app.run(debug=True)
+
 
