@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
-import sqlite3, json, os, datetime, csv, io
+import sqlite3, json, os, datetime, csv, io, secrets
 from contextlib import closing
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
@@ -65,13 +65,13 @@ def init_db():
             created_at TEXT NOT NULL
         );
         """)
-        # --- (A) MIGRAÇÃO LEVE ---
+        # --- MIGRAÇÃO: garantir coluna selections_map (JSON {slot_id: workshop_id}) ---
         cur.execute("PRAGMA table_info(attendees)")
         cols = [r["name"] for r in cur.fetchall()]
         if "selections_map" not in cols:
             cur.execute("ALTER TABLE attendees ADD COLUMN selections_map TEXT")
 
-        # Seed inicial
+        # Seed inicial (se vazio)
         cur.execute("SELECT COUNT(*) c FROM workshops")
         if cur.fetchone()["c"] == 0:
             names = [
@@ -86,8 +86,12 @@ def init_db():
             for n in names:
                 cur.execute(
                     "INSERT INTO workshops(name, capacity, registered) VALUES (?, ?, ?)",
-                    (n, 40, 0)
+                    (n, 30, 0)  # capacidade inicial = 30
                 )
+
+        # --- MIGRAÇÃO: atualizar capacidade para 30 em oficinas já existentes
+        cur.execute("UPDATE workshops SET capacity = 30 WHERE capacity <> 30")
+
         conn.commit()
 
 # --- Estrutura de horários ---
@@ -108,6 +112,14 @@ def _bootstrap_once():
         if not ADMIN_PASS_HASH and ADMIN_PASS:
             ADMIN_PASS_HASH = generate_password_hash(ADMIN_PASS)
         app.config["BOOTSTRAPPED"] = True
+
+# --- CSRF simples para ações POST no admin ---
+def _get_csrf_token():
+    tok = session.get("_csrf_token")
+    if not tok:
+        tok = secrets.token_hex(16)
+        session["_csrf_token"] = tok
+    return tok
 
 # --- Login helper ---
 def login_required(view):
@@ -172,6 +184,8 @@ def inscrever():
             conn.execute("ROLLBACK")
             flash("E-mail já inscrito.", "error")
             return redirect(url_for("index"))
+
+        # Reserva vaga para cada oficina escolhida
         for wid in chosen_ids:
             cur.execute("SELECT capacity, registered FROM workshops WHERE id=?", (wid,))
             row = cur.fetchone()
@@ -180,6 +194,7 @@ def inscrever():
                 flash("Uma das oficinas está lotada.", "error")
                 return redirect(url_for("index"))
             cur.execute("UPDATE workshops SET registered = registered + 1 WHERE id=?", (wid,))
+
         now = datetime.datetime.utcnow().isoformat()
         cur.execute(
             "INSERT INTO attendees(full_name,email,selections,selections_map,created_at) VALUES(?,?,?,?,?)",
@@ -188,7 +203,10 @@ def inscrever():
         conn.execute("COMMIT")
         return redirect(url_for("sucesso"))
     except Exception:
-        conn.execute("ROLLBACK")
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
         flash("Erro ao salvar. Tente novamente.", "error")
         return redirect(url_for("index"))
     finally:
@@ -232,8 +250,9 @@ def admin():
         except Exception:
             sels = []
         parsed.append({"full_name": a["full_name"], "email": a["email"], "selections": sels, "created_at": a["created_at"]})
-    return render_template("admin.html", workshops=ws, attendees=parsed)
+    return render_template("admin.html", workshops=ws, attendees=parsed, csrf_token=_get_csrf_token())
 
+# --- Export básico (workshops + attendees) ---
 @app.route("/export.csv")
 @login_required
 def export_csv():
@@ -297,7 +316,7 @@ def build_reports():
 
     return by_workshop, by_slot
 
-# --- Rotas de relatórios ---
+# --- Relatórios (view + exports) ---
 @app.route("/reports")
 @login_required
 def reports():
@@ -343,6 +362,24 @@ def export_by_slot_csv():
     resp.headers["Content-Type"] = "text/csv; charset=utf-8"
     resp.headers["Content-Disposition"] = "attachment; filename=relatorio_por_horario.csv"
     return resp
+
+# --- Resetar Base (apagar inscrições e zerar contadores) ---
+@app.post("/admin/reset")
+@login_required
+def admin_reset():
+    form_tok = request.form.get("_csrf_token") or ""
+    if not form_tok or form_tok != session.get("_csrf_token"):
+        flash("Falha de validação (CSRF). Recarregue a página e tente novamente.", "error")
+        return redirect(url_for("admin"))
+
+    with closing(get_db()) as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM attendees")
+        cur.execute("UPDATE workshops SET registered = 0")
+        conn.commit()
+
+    flash("Base resetada com sucesso: inscrições removidas e contadores zerados.", "message")
+    return redirect(url_for("admin"))
 
 # --- Execução local ---
 if __name__ == "__main__":
