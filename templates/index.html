@@ -97,17 +97,6 @@
       <section>
         <h3>{{ loop.index }}º Horário — {{ slot.hora }}</h3>
 
-        <!-- Opção: não escolher nesse horário -->
-        <label class="muted">
-          <input type="radio"
-                 name="slot_{{ slot.id }}"
-                 value=""
-                 class="slot-none"
-                 data-slot="{{ slot.id }}"
-                 checked>
-          Não escolher neste horário
-        </label>
-
         {% set bloqueadas = slot.bloqueadas %}
         {% for w in workshops %}
           {% set disabled = (w.name in bloqueadas) %}
@@ -131,6 +120,17 @@
     <p class="muted" style="margin-top:.75rem;">
       * Você pode escolher de 1 até 4 oficinas (no máximo uma por horário).
     </p>
+
+        <!-- Opção: não escolher nesse horário -->
+        <label class="muted">
+          <input type="radio"
+                 name="slot_{{ slot.id }}"
+                 value=""
+                 class="slot-none"
+                 data-slot="{{ slot.id }}"
+                 checked>
+          NÃO ESCOLHER NESTE HORÁRIO
+        </label>
 
     <label style="margin-top:1rem;">
       <input type="checkbox" name="consent" required>
@@ -203,3 +203,4 @@
   </script>
 </body>
 </html>
+
