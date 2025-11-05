@@ -24,11 +24,9 @@
   </style>
 </head>
 <body>
-  <h1>
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo da Conferência">
-    CONFERÊNCIA MULHERES FORTES
-    Inscrição para as Oficinas
-  </h1>
+  <h1><img src="{{ url_for('static', filename='logo.png') }}" alt="Logo da Conferência"></h1>
+  <h1>CONFERÊNCIA MULHERES FORTES</h1>
+  <h1>Inscrição para as Oficinas</h1>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -138,6 +136,7 @@
   </script>
 </body>
 </html>
+
 
 
 
