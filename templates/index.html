@@ -5,22 +5,81 @@
   <title>Inscrição nas Oficinas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 2rem auto; max-width: 860px; color: #222; padding: 0 1rem; background-color: #f2e9ea; }
-    h1 { display: flex; justify-content: center; align-items: center; text-align: center; margin-bottom: 1rem; color: #5f634a; flex-wrap: wrap; }
-    h1 img { width: 100%; height: auto; vertical-align: middle; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 2rem auto;
+      max-width: 860px;
+      color: #222;
+      padding: 0 1rem;
+      background-color: #f2e9ea;
+    }
+    h1 {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      margin-bottom: 1rem;
+      color: #5f634a;
+      flex-wrap: wrap;
+    }
+    h1 img {
+      width: 100%;
+      height: auto;
+      vertical-align: middle;
+    }
     form { margin-top: 1rem; }
-    fieldset.slot { margin: 1.25em 0; padding: 1em; border: 2px solid #ccc; border-radius: 10px; }
-    legend { font-weight: bold; color: #333; }
+    fieldset.slot {
+      margin: 1.25em 0;
+      padding: 1em;
+      border: 2px solid #731240;      /* borda combinando com o texto */
+      border-radius: 10px;
+      background: #a8ac8c;            /* fundo solicitado */
+      color: #731240;                 /* texto solicitado */
+    }
+    legend {
+      font-weight: bold;
+      color: #731240;                 /* cor do título do horário */
+    }
     label { display: block; margin-bottom: .45em; }
     label.bloqueada { color: #888; }
     label.bloqueada small { color: #aaa; }
-    .flash { padding: 1em; border-radius: 6px; margin-bottom: 1em; }
-    .flash.error { background: #ffe0e0; color: #a00; border: 1px solid #f99; }
-    .flash.message { background: #e0f8e0; color: #060; border: 1px solid #9c9; }
-    input[type="text"], input[type="email"] { width: 98%; padding: .6em; border: 1px solid #bbb; border-radius: 6px; margin-top: .25em; }
-    button { background: #731240; color: #fff; border: none; padding: .75em 1.5em; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
-    button:hover { background: #005c83; }
-    small.muted { color: #666; }
+    .flash {
+      padding: 1em;
+      border-radius: 6px;
+      margin-bottom: 1em;
+    }
+    .flash.error {
+      background: #ffe0e0;
+      color: #a00;
+      border: 1px solid #f99;
+    }
+    .flash.message {
+      background: #e0f8e0;
+      color: #060;
+      border: 1px solid #9c9;
+    }
+    input[type="text"], input[type="email"] {
+      width: 98%;
+      padding: .6em;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      margin-top: .25em;
+    }
+    input[type="radio"] {
+      accent-color: #731240;          /* cor dos botões de opção */
+    }
+    button {
+      background: #731240;
+      color: #fff;
+      border: none;
+      padding: .75em 1.5em;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    button:hover { background: #5a0f33; }
+    small.muted { color: #5f5f5f; }
   </style>
 </head>
 <body>
@@ -104,23 +163,13 @@
         byWorkshop.get(wid).push(r);
       });
 
-      // Primeiro, reabilita tudo que não está bloqueado por horário (não tocamos nos desabilitados do HTML)
-      byWorkshop.forEach(list => {
-        list.forEach(r => {
-          // só reabilita se não estiver desabilitado pelo HTML (bloqueio por horário):
-          // nosso seletor 'opt' só pega os habilitáveis, então ok reabilitar
-          r.disabled = false;
-        });
-      });
+      // Reabilita todos
+      byWorkshop.forEach(list => list.forEach(r => r.disabled = false));
 
-      // Para cada oficina: se ela foi escolhida em algum slot, desabilita as opções dessa mesma oficina nos outros slots
+      // Desabilita oficinas já escolhidas em outros horários
       byWorkshop.forEach(list => {
         const checked = list.find(r => r.checked && r.value);
-        if (checked) {
-          list.forEach(r => {
-            if (r !== checked) r.disabled = true;
-          });
-        }
+        if (checked) list.forEach(r => { if (r !== checked) r.disabled = true; });
       });
 
       // Habilita o submit se nº de escolhas (com valor) ∈ [1,4]
@@ -134,14 +183,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
