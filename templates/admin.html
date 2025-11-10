@@ -157,6 +157,7 @@
     <div class="footer">
       <div class="total">Total de inscritos: {{ total_attendees }}</div>
       <p></p>
+      <p></p>
       <form method="post" action="{{ url_for('admin_reset') }}"
             onsubmit="return confirm('⚠️ Isso vai apagar TODAS as inscrições e zerar os contadores. Tem certeza?');">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
@@ -166,4 +167,5 @@
   </div>
 </body>
 </html>
+
 
