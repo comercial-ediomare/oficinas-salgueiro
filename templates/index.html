@@ -115,16 +115,16 @@
   {% endwith %}
 
   <form method="post" action="{{ url_for('inscrever') }}">
-    <label>Nome completo:
+    <label><strong>Nome completo:</strong>
       <input type="text" name="full_name" required>
     </label>
 
-    <label style="margin-top:.6em;">E-mail:
+    <label style="margin-top:.6em;"><strong>E-mail:</strong>
       <input type="email" name="email" required>
     </label>
 
     <p><strong>Escolha abaixo as oficinas que você deseja participar.</strong></p>
-    <p><strong>(no máximo uma por horário e sem repetir a mesma oficina em horários distintos)</strong></p>
+    <p>(no máximo uma por horário e sem repetir a mesma oficina em horários distintos)</p>
 
     {% for slot in slots %}
       <fieldset class="slot">
@@ -204,4 +204,5 @@
   </script>
 </body>
 </html>
+
 
