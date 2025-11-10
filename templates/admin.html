@@ -58,22 +58,26 @@
     tr:nth-child(even) td{background:#fafafa}
     .nowrap{white-space:nowrap}
     form.inline{display:inline}
-    .spacer{flex:1}
+    .footer{
+      margin-top:2rem;
+      padding-top:1.2rem;
+      border-top:2px solid var(--brand);
+      text-align:center;
+    }
+    .total{
+      font-size:1.1rem;
+      font-weight:600;
+      color:var(--brand);
+      margin-bottom:.8rem;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="header">
-      <h1>Painel de Inscrições</h1>
+      <h1>Painel de Acompanhamento das Inscrições</h1>
       <div class="btns-right">
         <a class="btn" href="{{ url_for('reports') }}">Relatórios</a>
-        <!-- Exportação opcional (descomente se quiser o botão aqui também) -->
-        <!-- <a class="btn" href="{{ url_for('export_names_rows_by_workshop_slot_csv') }}">Exportar (Oficina | Horário | Nome | E-mail)</a> -->
-        <form class="inline" method="post" action="{{ url_for('admin_reset') }}"
-              onsubmit="return confirm('⚠️ Isso vai apagar TODAS as inscrições e zerar os contadores. Tem certeza?');">
-          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="btn btn-danger">Resetar Base</button>
-        </form>
         <a class="btn" href="{{ url_for('logout') }}">Sair</a>
       </div>
     </div>
@@ -149,6 +153,16 @@
         {% endif %}
       </tbody>
     </table>
+
+    <div class="footer">
+      <div class="total">Total de inscritos: {{ total_attendees }}</div>
+
+      <form method="post" action="{{ url_for('admin_reset') }}"
+            onsubmit="return confirm('⚠️ Isso vai apagar TODAS as inscrições e zerar os contadores. Tem certeza?');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-danger">Resetar Base</button>
+      </form>
+    </div>
   </div>
 </body>
 </html>
