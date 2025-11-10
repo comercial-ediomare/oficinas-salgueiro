@@ -289,73 +289,61 @@ def logout():
 @app.route("/admin")
 @login_required
 def admin():
-    # capacidade total por oficina = soma dos slots; inscritos = recontados de attendees
-    with closing(get_db()) as conn:
-        cap_rows = conn.execute("""
-            SELECT w.id AS wid, w.name AS name,
-                   COALESCE(SUM(ws.capacity),0) AS cap_total
-            FROM workshops w
-            LEFT JOIN workshop_slots ws ON ws.workshop_id = w.id
-            GROUP BY w.id, w.name
-            ORDER BY w.id
-        """).fetchall()
-        at_rows = conn.execute("""
-            SELECT id, full_name, email, selections, selections_map, created_at
-            FROM attendees
-            ORDER BY created_at DESC
-        """).fetchall()
+    conn = get_db()
+    cur = conn.cursor()
 
-    cap_by_wid  = {int(r["wid"]): int(r["cap_total"]) for r in cap_rows}
-    name_by_wid = {int(r["wid"]): r["name"] for r in cap_rows}
-
-    reg_by_wid = {wid: 0 for wid in cap_by_wid.keys()}
-    for a in at_rows:
-        try:
-            sel = json.loads(a["selections"]) if a["selections"] else []
-            if isinstance(sel, list):
-                for wid_raw in sel:
-                    wid = int(wid_raw)
-                    if wid in reg_by_wid:
-                        reg_by_wid[wid] += 1
-        except Exception:
-            pass
-
-    workshops_view = []
-    for wid in sorted(cap_by_wid.keys()):
-        cap_total = cap_by_wid[wid]
-        reg_total = reg_by_wid.get(wid, 0)
-        workshops_view.append({
-            "id": wid,
-            "name": name_by_wid.get(wid, f"ID {wid}"),
-            "capacity_total": cap_total,
-            "registered_total": reg_total,
-            "remaining_total": max(0, cap_total - reg_total),
+    # --- Oficinas ---
+    cur.execute("""
+        SELECT 
+            w.id,
+            w.name,
+            w.capacity AS capacity_total,
+            (
+                SELECT COUNT(*)
+                FROM attendees a
+                WHERE instr(a.selections, json_quote(w.id)) > 0
+            ) AS registered_total
+        FROM workshops w
+        ORDER BY w.id
+    """)
+    workshops = []
+    for row in cur.fetchall():
+        remaining = row["capacity_total"] - row["registered_total"]
+        workshops.append({
+            "id": row["id"],
+            "name": row["name"],
+            "capacity_total": row["capacity_total"],
+            "registered_total": row["registered_total"],
+            "remaining_total": max(remaining, 0)
         })
 
-    parsed_attendees = []
-    for a in at_rows:
-        try:
-            utc_dt = dt.fromisoformat(a["created_at"])
-            local_dt = utc_dt - timedelta(hours=3)  # GMT-3
-            created_local = local_dt.strftime("%d/%m/%Y %H:%M")
-        except Exception:
-            created_local = a["created_at"]
-        try:
-            sels = json.loads(a["selections"]) or []
-        except Exception:
-            sels = []
-        parsed_attendees.append({
-            "id": a["id"],
-            "full_name": a["full_name"],
-            "email": a["email"],
-            "selections": sels,
-            "created_at_local": created_local,
+    # --- Inscritos ---
+    cur.execute("SELECT * FROM attendees ORDER BY datetime(created_at) DESC")
+    attendees = []
+    for row in cur.fetchall():
+        local_dt = (
+            datetime.datetime.fromisoformat(row["created_at"])
+            - datetime.timedelta(hours=3)  # converte UTC → GMT-3
+        ).strftime("%d/%m/%Y %H:%M")
+        selections = json.loads(row["selections"])
+        attendees.append({
+            "id": row["id"],
+            "full_name": row["full_name"],
+            "email": row["email"],
+            "selections": selections,
+            "created_at_local": local_dt
         })
 
-    return render_template("admin.html",
-                           workshops=workshops_view,
-                           attendees=parsed_attendees,
-                           csrf_token=_get_csrf_token())
+    # --- Total geral de inscritos ---
+    total_attendees = len(attendees)
+
+    conn.close()
+    return render_template(
+        "admin.html",
+        workshops=workshops,
+        attendees=attendees,
+        total_attendees=total_attendees
+    )
 
 # =========================
 # Excluir inscrição individual
@@ -544,3 +532,4 @@ def export_names_rows_by_workshop_slot_csv():
 # =========================
 if __name__ == "__main__":
     app.run(debug=True)
+
